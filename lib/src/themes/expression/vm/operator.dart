@@ -4,7 +4,6 @@ import 'package:collection/collection.dart';
 
 import 'ast.dart';
 import 'compiler.dart';
-import 'error.dart';
 import 'op.dart';
 import 'resolver.dart';
 import 'type.dart';
@@ -22,7 +21,6 @@ class ResolveOperatorResult {
   ResolveOperatorResult({
     required this.type,
     required this.mayFail,
-    required this.errors,
     required this.isConstant,
     this.constantResult,
   }) : assert(constantResult == null || isConstant);
@@ -31,7 +29,6 @@ class ResolveOperatorResult {
   final bool mayFail;
   final bool isConstant;
   final ExprResult? constantResult;
-  final List<ExprError> errors;
 }
 
 OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
@@ -114,7 +111,6 @@ class ConstantOperator extends OperatorDefinition {
       ResolveOperatorResult(
         type: type,
         mayFail: false,
-        errors: [],
         isConstant: true,
       );
 
@@ -174,15 +170,12 @@ class SimpleOperatorDefinition extends OperatorDefinition {
     ResolveContext context,
   ) {
     var mayFail = false;
-    final errors = <ExprError>[];
 
     if (expr.arguments.length < minArgumentCount) {
-      errors.add(
-        ExprError(
-          expr,
-          'Expected at least $minArgumentCount arguments, but got '
-          '${expr.arguments.length}.',
-        ),
+      context.error(
+        expr,
+        'Expected at least $minArgumentCount arguments, but got '
+        '${expr.arguments.length}.',
       );
     }
 
@@ -191,16 +184,15 @@ class SimpleOperatorDefinition extends OperatorDefinition {
       if (maxArgumentCount == null || index < maxArgumentCount) {
         mayFail = mayFail ||
             argument.mayFail ||
-            checkArgumentType(argument, argumentsType, errors);
+            checkArgumentType(argument, argumentsType, context);
       } else {
-        errors.add(ExprError(argument, 'Unexpected argument.'));
+        context.error(argument, 'Unexpected argument.');
       }
     });
 
     return ResolveOperatorResult(
       type: type,
       mayFail: mayFail,
-      errors: errors,
       isConstant: expr.arguments.every((argument) => argument.isConstant),
     );
   }
@@ -241,7 +233,7 @@ class SimpleOperatorDefinition extends OperatorDefinition {
 bool checkArgumentType(
   Expr argument,
   ExprType parameterType,
-  List<ExprError> errors,
+  ResolveContext context,
 ) {
   if (parameterType.isAssignableFrom(argument.type)) {
     return false;
@@ -251,11 +243,9 @@ bool checkArgumentType(
     return true;
   }
 
-  errors.add(
-    ExprError(
-      argument,
-      '${argument.type} is not assignable to $parameterType.',
-    ),
+  context.error(
+    argument,
+    '${argument.type} is not assignable to $parameterType.',
   );
 
   // Does not matter what we return here since the operator will never be

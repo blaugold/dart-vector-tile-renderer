@@ -5,18 +5,17 @@ import 'operator.dart';
 import 'type.dart';
 import 'vm.dart';
 
-// TODO: Don't evaluate constant expressions if there are errors.
 class ExprResolver extends ExprVisitor<void> {
-  final _context = _ResolveContext();
-  final _errors = <ExprError>[];
+  var _context = _ResolveContext();
 
-  bool get hadError => _errors.isNotEmpty;
+  bool get hadError => errors.isNotEmpty;
 
-  List<ExprError> get errors => List.of(_errors);
+  List<ExprError> get errors => _context.errors;
 
   void resolve(Expr expr) {
-    _errors.clear();
+    _context = _ResolveContext();
     _resolve(expr);
+    _context._debugClose();
   }
 
   void _resolve(Expr expr) => expr.accept(this);
@@ -47,7 +46,7 @@ class ExprResolver extends ExprVisitor<void> {
     } else if (value is String) {
       expr.type = stringType;
     } else {
-      _error(expr, 'Unsupported literal type: ${value.runtimeType}');
+      _context.error(expr, 'Unsupported literal type: ${value.runtimeType}');
     }
 
     expr
@@ -64,12 +63,10 @@ class ExprResolver extends ExprVisitor<void> {
 
     final operatorDefinition = resolveOperatorDefinition(expr);
     if (operatorDefinition == null) {
-      _error(expr, 'Unknown operator: ${expr.name}');
+      _context.error(expr, 'Unknown operator: ${expr.name}');
       return;
     }
     final resolveResult = operatorDefinition.resolve(expr, _context);
-
-    _errors.addAll(resolveResult.errors);
 
     expr
       ..type = resolveResult.type
@@ -83,12 +80,15 @@ class ExprResolver extends ExprVisitor<void> {
       }
     }
   }
-
-  void _error(Expr expr, String message) =>
-      _errors.add(ExprError(expr, message));
 }
 
 abstract class ResolveContext {
+  bool get hadError;
+
+  List<ExprError> get errors;
+
+  void error(Expr expr, String message);
+
   ExprResult evaluateConstant(Expr expr);
 }
 
@@ -97,9 +97,45 @@ class _ResolveContext implements ResolveContext {
   static final _constantCompiler = ExprCompiler();
   static final _constantVM = ExprVM();
 
+  final _errors = <ExprError>[];
+  var _debugIsClosed = false;
+
+  @override
+  bool get hadError => _errors.isNotEmpty;
+
+  @override
+  List<ExprError> get errors => List.unmodifiable(_errors);
+
+  void _debugClose() {
+    assert(
+      () {
+        _debugIsClosed = true;
+        return true;
+      }(),
+    );
+  }
+
+  void _debugAssertIsNotClosed() {
+    assert(!_debugIsClosed);
+  }
+
+  @override
+  void error(Expr expr, String message) {
+    _debugAssertIsNotClosed();
+    _errors.add(ExprError(expr, message));
+  }
+
   @override
   ExprResult evaluateConstant(Expr expr) {
+    _debugAssertIsNotClosed();
+
     assert(expr.isConstant);
+
+    if (hadError) {
+      return const ErrorResult(
+        'Cannot evaluate constant expression when resolve errors exist.',
+      );
+    }
 
     if (!expr.hasConstantResult) {
       expr.constantResult = _constantVM.run(_constantCompiler.compile(expr));
