@@ -5,14 +5,17 @@ import 'dart:typed_data';
 import 'type.dart';
 
 class OpCode {
+  // Constants
   static const LoadNull = 0;
   static const LoadTrue = 1;
   static const LoadFalse = 2;
   static const LoadNumberConstant = 3;
   static const LoadObjectConstant = 4;
+  // Print
   static const PrintBool = 5;
   static const PrintNumber = 6;
   static const PrintObject = 7;
+  // Control flow
   static const ReturnBool = 8;
   static const ReturnNumber = 9;
   static const ReturnObject = 10;
@@ -20,12 +23,15 @@ class OpCode {
   static const JumpIfNoError = 12;
   static const LoadObjectAs = 13;
   static const SetErrorFlag = 14;
+  // Math
   static const Add = 15;
   static const Subtract = 16;
   static const Multiply = 17;
   static const Divide = 18;
   static const Modulo = 19;
   static const Pow = 20;
+  // Boolean
+  static const Not = 21;
 }
 
 enum Op {
@@ -49,7 +55,8 @@ enum Op {
   Multiply(OpCode.Multiply),
   Divide(OpCode.Divide),
   Modulo(OpCode.Modulo),
-  Pow(OpCode.Pow);
+  Pow(OpCode.Pow),
+  Not(OpCode.Not);
 
   const Op(this.code);
 
@@ -139,8 +146,10 @@ class CodeBuilder {
 
     writeOp(Op.LoadObjectAs);
     _writeUint8(offset);
-    if (type == numberType) {
+    if (type == boolType) {
       _writeUint8(0);
+    } else if (type == numberType) {
+      _writeUint8(1);
     } else {
       throw UnsupportedError('CheckType does not support $type.');
     }

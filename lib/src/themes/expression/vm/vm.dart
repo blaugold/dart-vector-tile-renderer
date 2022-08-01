@@ -20,6 +20,13 @@ class OkResult extends ExprResult {
   const OkResult(this.value);
 
   @override
+  bool operator ==(Object other) =>
+      identical(other, this) || other is OkResult && other.value == value;
+
+  @override
+  int get hashCode => runtimeType.hashCode ^ value.hashCode;
+
+  @override
   String toString() => 'OkResult($value)';
 }
 
@@ -120,6 +127,10 @@ class _ExprVM implements ExprVM {
           case OpCode.Pow:
             _pow();
             break;
+          case OpCode.Not:
+            final offset = _sp - 1;
+            _stack[offset] = _stack[offset] == 0 ? 1 : 0;
+            break;
           default:
             return ErrorResult('Unknown op: $op');
         }
@@ -200,12 +211,19 @@ class _ExprVM implements ExprVM {
     final stackOffset = _sp - 1 - offset;
     final objectStackOffset = _stack[stackOffset].toInt();
     final object = _stackObjects.removeAt(objectStackOffset);
+
+    var checkSucceeded = false;
     switch (type) {
-      case 0: // Number
+      case 0: // Bool
+        if (object is bool) {
+          checkSucceeded = true;
+          _stack[stackOffset] = object ? 1.0 : 0.0;
+        }
+        break;
+      case 1: // Number
         if (object is double) {
+          checkSucceeded = true;
           _stack[stackOffset] = object;
-          // Consume the unused arguments.
-          _ip += Uint8List.bytesPerElement + Uint16List.bytesPerElement;
           return;
         }
         break;
@@ -213,23 +231,26 @@ class _ExprVM implements ExprVM {
         assert(false, 'Unknown type id: $type');
     }
 
-    // The type check failed.
+    if (checkSucceeded) {
+      // Consume the unused arguments.
+      _ip += Uint8List.bytesPerElement + Uint16List.bytesPerElement;
+    } else {
+      // Clean up the stack.
+      final encodedValuesToPop = _loadUint8();
+      final valuesToPop = encodedValuesToPop >> 4;
+      final objectsToPop = encodedValuesToPop & 0x0F;
+      _sp -= valuesToPop;
+      _stackObjects.removeRange(
+        // -1 because we already removed the target object.
+        _stackObjects.length - (objectsToPop - 1),
+        _stackObjects.length,
+      );
 
-    // Clean up the stack.
-    final encodedValuesToPop = _loadUint8();
-    final valuesToPop = encodedValuesToPop >> 4;
-    final objectsToPop = encodedValuesToPop & 0x0F;
-    _sp -= valuesToPop;
-    _stackObjects.removeRange(
-      // -1 because we already removed the target object.
-      _stackObjects.length - (objectsToPop - 1),
-      _stackObjects.length,
-    );
-
-    // Jump to the error handler.
-    final errorHandlerAddress = _loadUint16();
-    _errorFlag = true;
-    _ip = errorHandlerAddress;
+      // Jump to the error handler.
+      final errorHandlerAddress = _loadUint16();
+      _errorFlag = true;
+      _ip = errorHandlerAddress;
+    }
   }
 
   void _add() {

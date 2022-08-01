@@ -64,6 +64,7 @@ extension DisassembleExt on Code {
       case Op.Divide:
       case Op.Modulo:
       case Op.Pow:
+      case Op.Not:
         break;
       case Op.LoadNumberConstant:
         final value = code.getFloat64(offset, Endian.host);
@@ -91,6 +92,9 @@ extension DisassembleExt on Code {
         final typeId = code.getUint8(offset++);
         switch (typeId) {
           case 0:
+            buffer.write('bool');
+            break;
+          case 1:
             buffer.write('number');
             break;
           default:
