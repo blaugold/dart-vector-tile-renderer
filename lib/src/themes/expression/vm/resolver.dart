@@ -5,16 +5,35 @@ import 'operator.dart';
 import 'type.dart';
 import 'vm.dart';
 
+abstract class ResolveContext {
+  bool get evaluateConstants;
+
+  bool get hadError;
+
+  List<ExprError> get errors;
+
+  void error(Expr expr, String message);
+
+  ExprResult evaluateConstant(Expr expr);
+}
+
 class ExprResolver extends ExprVisitor<void> {
-  var _context = _ResolveContext();
+  ExprResolver({this.evaluateConstants = true});
+
+  final bool evaluateConstants;
 
   bool get hadError => errors.isNotEmpty;
 
   List<ExprError> get errors => _context.errors;
 
+  var _context = _ResolveContext(evaluateConstants: true);
+
   void resolve(Expr expr) {
-    _context = _ResolveContext();
+    _context = _ResolveContext(evaluateConstants: evaluateConstants);
     _resolve(expr);
+    if (evaluateConstants && expr.isConstant) {
+      _context.evaluateConstant(expr);
+    }
     _context._debugClose();
   }
 
@@ -28,10 +47,6 @@ class ExprResolver extends ExprVisitor<void> {
       ..type = expr.expr.type
       ..mayFail = expr.expr.mayFail
       ..isConstant = expr.expr.isConstant;
-
-    if (expr.isConstant) {
-      _context.evaluateConstant(expr);
-    }
   }
 
   @override
@@ -82,20 +97,15 @@ class ExprResolver extends ExprVisitor<void> {
   }
 }
 
-abstract class ResolveContext {
-  bool get hadError;
-
-  List<ExprError> get errors;
-
-  void error(Expr expr, String message);
-
-  ExprResult evaluateConstant(Expr expr);
-}
-
 class _ResolveContext implements ResolveContext {
+  _ResolveContext({required this.evaluateConstants});
+
   // Compiler and VM to evaluate constant expressions.
   static final _constantCompiler = ExprCompiler();
   static final _constantVM = ExprVM();
+
+  @override
+  final bool evaluateConstants;
 
   final _errors = <ExprError>[];
   var _debugIsClosed = false;
@@ -129,6 +139,7 @@ class _ResolveContext implements ResolveContext {
   ExprResult evaluateConstant(Expr expr) {
     _debugAssertIsNotClosed();
 
+    assert(evaluateConstants);
     assert(expr.isConstant);
 
     if (hadError) {
