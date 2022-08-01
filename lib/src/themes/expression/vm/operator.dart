@@ -1,9 +1,9 @@
 import 'package:collection/collection.dart';
 
 import 'ast.dart';
-import 'code.dart';
 import 'compiler.dart';
 import 'error.dart';
+import 'op.dart';
 import 'resolver.dart';
 import 'type.dart';
 import 'vm.dart';
@@ -78,9 +78,9 @@ OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
         type: boolType,
         argumentCount: 1,
       );
-    default:
-      return null;
   }
+
+  return null;
 }
 
 class SimpleOperatorDefinition extends OperatorDefinition {

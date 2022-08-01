@@ -7,3 +7,5 @@ linter:
     - prefer_relative_imports
     - prefer_final_locals
     - require_trailing_commas
+    - no_default_cases
+    - exhaustive_cases

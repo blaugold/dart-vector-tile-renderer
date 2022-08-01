@@ -1,6 +1,7 @@
 import 'ast.dart';
 import 'code.dart';
 import 'debug.dart';
+import 'op.dart';
 import 'operator.dart';
 import 'type.dart';
 import 'vm.dart';

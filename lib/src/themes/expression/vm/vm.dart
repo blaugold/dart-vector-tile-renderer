@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'code.dart';
 import 'debug.dart';
+import 'op.dart';
 
 abstract class ExprVM {
   factory ExprVM() = _ExprVM;
@@ -77,20 +78,11 @@ class _ExprVM implements ExprVM {
           case OpCode.LoadFalse:
             _pushBool(false);
             break;
-          case OpCode.LoadNumberConstant:
-            _loadNumberConstant();
+          case OpCode.LoadNumber:
+            _loadNumber();
             break;
-          case OpCode.LoadObjectConstant:
-            _loadObjectConstant();
-            break;
-          case OpCode.PrintBool:
-            _print(_popBool());
-            break;
-          case OpCode.PrintNumber:
-            _print(_popNumber());
-            break;
-          case OpCode.PrintObject:
-            _print(_popObject());
+          case OpCode.LoadObject:
+            _loadObject();
             break;
           case OpCode.ReturnBool:
             return OkResult(_popBool());
@@ -184,16 +176,11 @@ class _ExprVM implements ExprVM {
     return _stackObjects.removeAt(objectId);
   }
 
-  void _loadNumberConstant() => _pushNumber(_loadFloat64());
+  void _loadNumber() => _pushNumber(_loadFloat64());
 
-  void _loadObjectConstant() {
+  void _loadObject() {
     final constantId = _loadUint8();
     _pushObject(_objectConstants[constantId]);
-  }
-
-  void _print(Object? value) {
-    // ignore: avoid_print
-    print(value);
   }
 
   void _jumpIfNoError() {

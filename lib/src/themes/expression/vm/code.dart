@@ -2,66 +2,8 @@
 
 import 'dart:typed_data';
 
+import 'op.dart';
 import 'type.dart';
-
-class OpCode {
-  // Constants
-  static const LoadNull = 0;
-  static const LoadTrue = 1;
-  static const LoadFalse = 2;
-  static const LoadNumberConstant = 3;
-  static const LoadObjectConstant = 4;
-  // Print
-  static const PrintBool = 5;
-  static const PrintNumber = 6;
-  static const PrintObject = 7;
-  // Control flow
-  static const ReturnBool = 8;
-  static const ReturnNumber = 9;
-  static const ReturnObject = 10;
-  static const ReturnError = 11;
-  static const JumpIfNoError = 12;
-  static const LoadObjectAs = 13;
-  static const SetErrorFlag = 14;
-  // Math
-  static const Add = 15;
-  static const Subtract = 16;
-  static const Multiply = 17;
-  static const Divide = 18;
-  static const Modulo = 19;
-  static const Pow = 20;
-  // Boolean
-  static const Not = 21;
-}
-
-enum Op {
-  LoadNull(OpCode.LoadNull),
-  LoadTrue(OpCode.LoadTrue),
-  LoadFalse(OpCode.LoadFalse),
-  LoadNumberConstant(OpCode.LoadNumberConstant),
-  LoadObjectConstant(OpCode.LoadObjectConstant),
-  PrintBool(OpCode.PrintBool),
-  PrintNumber(OpCode.PrintNumber),
-  PrintObject(OpCode.PrintObject),
-  ReturnBool(OpCode.ReturnBool),
-  ReturnNumber(OpCode.ReturnNumber),
-  ReturnObject(OpCode.ReturnObject),
-  ReturnError(OpCode.ReturnError),
-  JumpIfNoError(OpCode.JumpIfNoError),
-  LoadObjectAs(OpCode.LoadObjectAs),
-  SetErrorFlag(OpCode.SetErrorFlag),
-  Add(OpCode.Add),
-  Subtract(OpCode.Subtract),
-  Multiply(OpCode.Multiply),
-  Divide(OpCode.Divide),
-  Modulo(OpCode.Modulo),
-  Pow(OpCode.Pow),
-  Not(OpCode.Not);
-
-  const Op(this.code);
-
-  final int code;
-}
 
 class CodeLocation {
   CodeLocation._(this._code);
@@ -101,15 +43,15 @@ class CodeBuilder {
   }
 
   void loadNumberConstant(double number) {
-    writeOp(Op.LoadNumberConstant);
+    writeOp(Op.LoadNumber);
     _writeFloat64(number);
   }
 
   void loadObjectConstant(Object? value) {
-    writeOp(Op.LoadObjectConstant);
+    writeOp(Op.LoadObject);
     final constantId = _addConstant(value);
     if (constantId >= 0xFF) {
-      throw StateError('LoadObjectConstant only supports 256 constants.');
+      throw StateError('LoadObject only supports 256 constants.');
     }
     _writeUint8(constantId);
   }

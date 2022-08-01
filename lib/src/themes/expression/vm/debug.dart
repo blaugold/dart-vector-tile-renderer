@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 
 import 'code.dart';
+import 'op.dart';
 
 const debugExprCompilerPrintCode = true;
 const debugExprVMTraceExecution = true;
@@ -50,9 +51,6 @@ extension DisassembleExt on Code {
       case Op.LoadNull:
       case Op.LoadTrue:
       case Op.LoadFalse:
-      case Op.PrintBool:
-      case Op.PrintNumber:
-      case Op.PrintObject:
       case Op.ReturnBool:
       case Op.ReturnNumber:
       case Op.ReturnObject:
@@ -66,12 +64,12 @@ extension DisassembleExt on Code {
       case Op.Pow:
       case Op.Not:
         break;
-      case Op.LoadNumberConstant:
+      case Op.LoadNumber:
         final value = code.getFloat64(offset, Endian.host);
         offset += Float64List.bytesPerElement;
         buffer.write(value);
         break;
-      case Op.LoadObjectConstant:
+      case Op.LoadObject:
         final constantId = code.getUint8(offset++);
         buffer.write(objectConstants[constantId]);
         buffer.write(' ');
@@ -117,8 +115,6 @@ extension DisassembleExt on Code {
         buffer.write('error handler -> ');
         buffer.writeInstructionAddress(jumpAddress);
         break;
-      default:
-        throw UnimplementedError('Disassembly for $op not implemented.');
     }
 
     return offset;
