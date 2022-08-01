@@ -52,6 +52,7 @@ void main() {
       });
 
       test('-', () {
+        evaluateConstant(['-', 1], okResult(-1));
         evaluateConstant(['-', 1, 2], okResult(-1));
       });
 

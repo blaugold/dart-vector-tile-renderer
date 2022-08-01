@@ -123,6 +123,7 @@ extension DisassembleExt on Code {
       case Op.Modulo:
       case Op.Pow:
       case Op.Sqrt:
+      case Op.Negate:
       case Op.Abs:
       case Op.Ceil:
       case Op.Floor:

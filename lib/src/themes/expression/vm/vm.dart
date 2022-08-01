@@ -140,6 +140,9 @@ class _ExprVM implements ExprVM {
           case OpCode.Sqrt:
             _unaryMathOp(sqrt);
             break;
+          case OpCode.Negate:
+            _unaryMathOp((x) => -x);
+            break;
           case OpCode.Abs:
             _unaryMathOp((x) => x.abs());
             break;

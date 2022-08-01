@@ -58,7 +58,9 @@ OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
     case '+':
       return const NaryMathOperator(Op.Add);
     case '-':
-      // TODO: Unary -
+      if (expr.arguments.length == 1) {
+        return const UnaryMathOperator(Op.Negate);
+      }
       return const BinaryMathOperator(Op.Subtract);
     case '*':
       return const NaryMathOperator(Op.Multiply);

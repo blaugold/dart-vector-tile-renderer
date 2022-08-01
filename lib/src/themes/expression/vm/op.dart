@@ -36,19 +36,20 @@ class OpCode {
   static const Modulo = 22;
   static const Pow = 23;
   static const Sqrt = 24;
-  static const Abs = 25;
-  static const Ceil = 26;
-  static const Floor = 27;
-  static const Round = 28;
-  static const Sin = 29;
-  static const Asin = 30;
-  static const Cos = 31;
-  static const Acos = 32;
-  static const Tan = 33;
-  static const Atan = 34;
-  static const Log = 35;
-  static const Log2 = 36;
-  static const Log10 = 37;
+  static const Negate = 25;
+  static const Abs = 26;
+  static const Ceil = 27;
+  static const Floor = 28;
+  static const Round = 29;
+  static const Sin = 30;
+  static const Asin = 31;
+  static const Cos = 32;
+  static const Acos = 33;
+  static const Tan = 34;
+  static const Atan = 35;
+  static const Log = 36;
+  static const Log2 = 37;
+  static const Log10 = 38;
 }
 
 enum Op {
@@ -82,6 +83,7 @@ enum Op {
   Modulo(OpCode.Modulo),
   Pow(OpCode.Pow),
   Sqrt(OpCode.Sqrt),
+  Negate(OpCode.Negate),
   Abs(OpCode.Abs),
   Ceil(OpCode.Ceil),
   Floor(OpCode.Floor),

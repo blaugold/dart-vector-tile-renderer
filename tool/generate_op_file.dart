@@ -60,6 +60,7 @@ final opCodeGroups = [
     'Modulo',
     'Pow',
     'Sqrt',
+    'Negate',
     'Abs',
     'Ceil',
     'Floor',
