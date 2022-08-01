@@ -59,18 +59,12 @@ bool checkArgumentType(
 
 OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
   switch (expr.name) {
-    case '+':
-      return const BinaryMathOperator(Op.Add);
-    case '-':
-      return const BinaryMathOperator(Op.Subtract);
-    case '*':
-      return const BinaryMathOperator(Op.Multiply);
-    case '/':
-      return const BinaryMathOperator(Op.Divide);
-    case '%':
-      return const BinaryMathOperator(Op.Modulo);
-    case '^':
-      return const BinaryMathOperator(Op.Pow);
+    case 'e':
+      return const ConstantOperator(numberType, Op.E);
+    case 'ln2':
+      return const ConstantOperator(numberType, Op.Ln2);
+    case 'pi':
+      return const ConstantOperator(numberType, Op.Pi);
     case '!':
       return const SimpleOperatorDefinition(
         Op.Not,
@@ -78,9 +72,74 @@ OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
         type: boolType,
         argumentCount: 1,
       );
+    // TODO: distance
+    // TODO: max, min
+    case '+':
+      // TODO: Variadic +
+      return const BinaryMathOperator(Op.Add);
+    case '-':
+      // TODO: Unary -
+      return const BinaryMathOperator(Op.Subtract);
+    case '*':
+      // TODO: Variadic *
+      return const BinaryMathOperator(Op.Multiply);
+    case '/':
+      return const BinaryMathOperator(Op.Divide);
+    case '%':
+      return const BinaryMathOperator(Op.Modulo);
+    case '^':
+      return const BinaryMathOperator(Op.Pow);
+    case 'sqrt':
+      return const UnaryMathOperator(Op.Sqrt);
+    case 'abs':
+      return const UnaryMathOperator(Op.Abs);
+    case 'ceil':
+      return const UnaryMathOperator(Op.Ceil);
+    case 'floor':
+      return const UnaryMathOperator(Op.Floor);
+    case 'round':
+      return const UnaryMathOperator(Op.Round);
+    case 'sin':
+      return const UnaryMathOperator(Op.Sin);
+    case 'asin':
+      return const UnaryMathOperator(Op.Asin);
+    case 'cos':
+      return const UnaryMathOperator(Op.Cos);
+    case 'acos':
+      return const UnaryMathOperator(Op.Acos);
+    case 'tan':
+      return const UnaryMathOperator(Op.Tan);
+    case 'atan':
+      return const UnaryMathOperator(Op.Atan);
+    case 'ln':
+      return const UnaryMathOperator(Op.Log);
+    case 'log2':
+      return const UnaryMathOperator(Op.Log2);
+    case 'log10':
+      return const UnaryMathOperator(Op.Log10);
   }
 
   return null;
+}
+
+class ConstantOperator extends OperatorDefinition {
+  const ConstantOperator(this.type, this.op);
+
+  final ExprType type;
+  final Op op;
+
+  @override
+  ResolveOperatorResult resolve(List<Expr> arguments, ResolveContext context) =>
+      ResolveOperatorResult(
+        type: type,
+        mayFail: false,
+        errors: [],
+        isConstant: true,
+      );
+
+  @override
+  void compile(OperatorExpr expr, CompileContext context) =>
+      context.code.writeOp(op);
 }
 
 class SimpleOperatorDefinition extends OperatorDefinition {

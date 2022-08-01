@@ -84,6 +84,15 @@ class _ExprVM implements ExprVM {
           case OpCode.LoadObject:
             _loadObject();
             break;
+          case OpCode.E:
+            _pushNumber(e);
+            break;
+          case OpCode.Ln2:
+            _pushNumber(ln2);
+            break;
+          case OpCode.Pi:
+            _pushNumber(pi);
+            break;
           case OpCode.ReturnBool:
             return OkResult(_popBool());
           case OpCode.ReturnNumber:
@@ -95,33 +104,74 @@ class _ExprVM implements ExprVM {
           case OpCode.JumpIfNoError:
             _jumpIfNoError();
             break;
-          case OpCode.LoadObjectAs:
-            _loadObjectAs();
-            break;
           case OpCode.SetErrorFlag:
             _errorFlag = true;
             break;
-          case OpCode.Add:
-            _add();
-            break;
-          case OpCode.Subtract:
-            _subtract();
-            break;
-          case OpCode.Multiply:
-            _multiply();
-            break;
-          case OpCode.Divide:
-            _divide();
-            break;
-          case OpCode.Modulo:
-            _modulo();
-            break;
-          case OpCode.Pow:
-            _pow();
+          case OpCode.LoadObjectAs:
+            _loadObjectAs();
             break;
           case OpCode.Not:
-            final offset = _sp - 1;
-            _stack[offset] = _stack[offset] == 0 ? 1 : 0;
+            _unaryMathOp((x) => x == 0 ? 1 : 0);
+            break;
+          case OpCode.Add:
+            _binaryMathOp((a, b) => a + b);
+            break;
+          case OpCode.Subtract:
+            _binaryMathOp((a, b) => a - b);
+            break;
+          case OpCode.Multiply:
+            _binaryMathOp((a, b) => a * b);
+            break;
+          case OpCode.Divide:
+            _binaryMathOp((a, b) => a / b);
+            break;
+          case OpCode.Modulo:
+            _binaryMathOp((a, b) => a % b);
+            break;
+          case OpCode.Pow:
+            _binaryMathOp((a, b) => pow(a, b) as double);
+            break;
+          case OpCode.Sqrt:
+            _unaryMathOp(sqrt);
+            break;
+          case OpCode.Abs:
+            _unaryMathOp((x) => x.abs());
+            break;
+          case OpCode.Floor:
+            _unaryMathOp((x) => x.floorToDouble());
+            break;
+          case OpCode.Ceil:
+            _unaryMathOp((x) => x.ceilToDouble());
+            break;
+          case OpCode.Round:
+            _unaryMathOp((x) => x.roundToDouble());
+            break;
+          case OpCode.Sin:
+            _unaryMathOp(sin);
+            break;
+          case OpCode.Asin:
+            _unaryMathOp(asin);
+            break;
+          case OpCode.Cos:
+            _unaryMathOp(cos);
+            break;
+          case OpCode.Acos:
+            _unaryMathOp(acos);
+            break;
+          case OpCode.Tan:
+            _unaryMathOp(tan);
+            break;
+          case OpCode.Atan:
+            _unaryMathOp(atan);
+            break;
+          case OpCode.Log:
+            _unaryMathOp(log);
+            break;
+          case OpCode.Log2:
+            _unaryMathOp((x) => log(x) / ln2);
+            break;
+          case OpCode.Log10:
+            _unaryMathOp((x) => log(x) / ln10);
             break;
           default:
             return ErrorResult('Unknown op: $op');
@@ -240,39 +290,14 @@ class _ExprVM implements ExprVM {
     }
   }
 
-  void _add() {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(a + b);
+  void _unaryMathOp(double Function(double x) op) {
+    final offset = _sp - 1;
+    _stack[offset] = op(_stack[offset]);
   }
 
-  void _subtract() {
+  void _binaryMathOp(double Function(double a, double b) op) {
     final b = _popNumber();
     final a = _popNumber();
-    _pushNumber(a - b);
-  }
-
-  void _multiply() {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(a * b);
-  }
-
-  void _divide() {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(a / b);
-  }
-
-  void _modulo() {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(a % b);
-  }
-
-  void _pow() {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(pow(a, b) as double);
+    _pushNumber(op(a, b));
   }
 }

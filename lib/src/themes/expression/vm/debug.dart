@@ -51,18 +51,6 @@ extension DisassembleExt on Code {
       case Op.LoadNull:
       case Op.LoadTrue:
       case Op.LoadFalse:
-      case Op.ReturnBool:
-      case Op.ReturnNumber:
-      case Op.ReturnObject:
-      case Op.ReturnError:
-      case Op.SetErrorFlag:
-      case Op.Add:
-      case Op.Subtract:
-      case Op.Multiply:
-      case Op.Divide:
-      case Op.Modulo:
-      case Op.Pow:
-      case Op.Not:
         break;
       case Op.LoadNumber:
         final value = code.getFloat64(offset, Endian.host);
@@ -75,11 +63,21 @@ extension DisassembleExt on Code {
         buffer.write(' ');
         buffer.writeId(constantId);
         break;
+      case Op.E:
+      case Op.Ln2:
+      case Op.Pi:
+      case Op.ReturnBool:
+      case Op.ReturnNumber:
+      case Op.ReturnObject:
+      case Op.ReturnError:
+        break;
       case Op.JumpIfNoError:
         final jumpAddress = code.getUint16(offset, Endian.host);
         offset += Uint16List.bytesPerElement;
         buffer.write('-> ');
         buffer.writeInstructionAddress(jumpAddress);
+        break;
+      case Op.SetErrorFlag:
         break;
       case Op.LoadObjectAs:
         final stackOffset = code.getUint8(offset++);
@@ -114,6 +112,28 @@ extension DisassembleExt on Code {
         offset += Uint16List.bytesPerElement;
         buffer.write('error handler -> ');
         buffer.writeInstructionAddress(jumpAddress);
+        break;
+      case Op.Not:
+      case Op.Add:
+      case Op.Subtract:
+      case Op.Multiply:
+      case Op.Divide:
+      case Op.Modulo:
+      case Op.Pow:
+      case Op.Sqrt:
+      case Op.Abs:
+      case Op.Ceil:
+      case Op.Floor:
+      case Op.Round:
+      case Op.Sin:
+      case Op.Asin:
+      case Op.Cos:
+      case Op.Acos:
+      case Op.Tan:
+      case Op.Atan:
+      case Op.Log:
+      case Op.Log2:
+      case Op.Log10:
         break;
     }
 

@@ -8,28 +8,45 @@ class OpCode {
   static const LoadFalse = 2;
   static const LoadNumber = 3;
   static const LoadObject = 4;
+  static const E = 5;
+  static const Ln2 = 6;
+  static const Pi = 7;
 
   // Control flow
-  static const ReturnBool = 5;
-  static const ReturnNumber = 6;
-  static const ReturnObject = 7;
-  static const ReturnError = 8;
-  static const JumpIfNoError = 9;
-  static const SetErrorFlag = 10;
+  static const ReturnBool = 8;
+  static const ReturnNumber = 9;
+  static const ReturnObject = 10;
+  static const ReturnError = 11;
+  static const JumpIfNoError = 12;
+  static const SetErrorFlag = 13;
 
   // Type checks
-  static const LoadObjectAs = 11;
+  static const LoadObjectAs = 14;
 
   // Boolean logic
-  static const Not = 12;
+  static const Not = 15;
 
   // Arithmetic
-  static const Add = 13;
-  static const Subtract = 14;
-  static const Multiply = 15;
-  static const Divide = 16;
-  static const Modulo = 17;
-  static const Pow = 18;
+  static const Add = 16;
+  static const Subtract = 17;
+  static const Multiply = 18;
+  static const Divide = 19;
+  static const Modulo = 20;
+  static const Pow = 21;
+  static const Sqrt = 22;
+  static const Abs = 23;
+  static const Ceil = 24;
+  static const Floor = 25;
+  static const Round = 26;
+  static const Sin = 27;
+  static const Asin = 28;
+  static const Cos = 29;
+  static const Acos = 30;
+  static const Tan = 31;
+  static const Atan = 32;
+  static const Log = 33;
+  static const Log2 = 34;
+  static const Log10 = 35;
 }
 
 enum Op {
@@ -39,6 +56,9 @@ enum Op {
   LoadFalse(OpCode.LoadFalse),
   LoadNumber(OpCode.LoadNumber),
   LoadObject(OpCode.LoadObject),
+  E(OpCode.E),
+  Ln2(OpCode.Ln2),
+  Pi(OpCode.Pi),
   // Control flow
   ReturnBool(OpCode.ReturnBool),
   ReturnNumber(OpCode.ReturnNumber),
@@ -56,7 +76,21 @@ enum Op {
   Multiply(OpCode.Multiply),
   Divide(OpCode.Divide),
   Modulo(OpCode.Modulo),
-  Pow(OpCode.Pow);
+  Pow(OpCode.Pow),
+  Sqrt(OpCode.Sqrt),
+  Abs(OpCode.Abs),
+  Ceil(OpCode.Ceil),
+  Floor(OpCode.Floor),
+  Round(OpCode.Round),
+  Sin(OpCode.Sin),
+  Asin(OpCode.Asin),
+  Cos(OpCode.Cos),
+  Acos(OpCode.Acos),
+  Tan(OpCode.Tan),
+  Atan(OpCode.Atan),
+  Log(OpCode.Log),
+  Log2(OpCode.Log2),
+  Log10(OpCode.Log10);
 
   const Op(this.code);
 

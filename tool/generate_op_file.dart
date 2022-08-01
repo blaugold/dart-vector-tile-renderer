@@ -15,7 +15,7 @@ void main() {
   file.writeAsStringSync(buffer.toString(), flush: true);
 
   // Format the file.
-  Process.runSync('dart', ['format', file.absolute.path], runInShell: true);
+  Process.runSync('dart', ['format', file.path], runInShell: true);
 }
 
 class OpCodeGroup {
@@ -32,6 +32,9 @@ final opCodeGroups = [
     'LoadFalse',
     'LoadNumber',
     'LoadObject',
+    'E',
+    'Ln2',
+    'Pi',
   ]),
   OpCodeGroup('Control flow', [
     'ReturnBool',
@@ -54,6 +57,20 @@ final opCodeGroups = [
     'Divide',
     'Modulo',
     'Pow',
+    'Sqrt',
+    'Abs',
+    'Ceil',
+    'Floor',
+    'Round',
+    'Sin',
+    'Asin',
+    'Cos',
+    'Acos',
+    'Tan',
+    'Atan',
+    'Log',
+    'Log2',
+    'Log10',
   ]),
 ];
 
