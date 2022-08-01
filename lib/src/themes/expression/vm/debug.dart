@@ -39,7 +39,8 @@ extension DisassembleExt on Code {
     buffer.writeInstructionAddress(offset);
     buffer.write(' ');
 
-    final opCode = code.getUint8(offset++);
+    final opCode = code.getUint8(offset);
+    offset += Uint8List.bytesPerElement;
     final op = Op.values.firstWhereOrNull((element) => element.code == opCode);
     if (op == null) {
       throw StateError('Invalid op code: $opCode.');

@@ -52,196 +52,218 @@ class _ExprVM implements ExprVM {
 
   @override
   ExprResult run(Code code) {
-    _code = ByteData.sublistView(code.code);
-    _objectConstants = code.objectConstants;
-
     if (debugExprVMTraceExecution) {
       // ignore: avoid_print
       print('=== Execution Start ===');
     }
 
-    try {
-      while (true) {
-        if (debugExprVMTraceExecution) {
-          // ignore: avoid_print
-          print(code.disassembleInstruction(_ip, _code));
-        }
+    final result = _run(code);
 
-        final op = _loadOp();
-        switch (op) {
-          case OpCode.LoadNull:
-            _pushObject(null);
-            break;
-          case OpCode.LoadTrue:
-            _pushBool(true);
-            break;
-          case OpCode.LoadFalse:
-            _pushBool(false);
-            break;
-          case OpCode.LoadNumber:
-            _loadNumber();
-            break;
-          case OpCode.LoadObject:
-            _loadObject();
-            break;
-          case OpCode.E:
-            _pushNumber(e);
-            break;
-          case OpCode.Ln2:
-            _pushNumber(ln2);
-            break;
-          case OpCode.Pi:
-            _pushNumber(pi);
-            break;
-          case OpCode.ReturnBool:
-            return OkResult(_popBool());
-          case OpCode.ReturnNumber:
-            return OkResult(_popNumber());
-          case OpCode.ReturnObject:
-            return OkResult(_popObject());
-          case OpCode.ReturnError:
-            return const ErrorResult('Expression evaluation failed.');
-          case OpCode.JumpIfNoError:
-            _jumpIfNoError();
-            break;
-          case OpCode.SetErrorFlag:
-            _errorFlag = true;
-            break;
-          case OpCode.LoadObjectAs:
-            _loadObjectAs();
-            break;
-          case OpCode.Not:
-            _unaryMathOp((x) => x == 0 ? 1 : 0);
-            break;
-          case OpCode.Min:
-            _binaryMathOp(min);
-            break;
-          case OpCode.Max:
-            _binaryMathOp(max);
-            break;
-          case OpCode.Add:
-            _binaryMathOp((a, b) => a + b);
-            break;
-          case OpCode.Subtract:
-            _binaryMathOp((a, b) => a - b);
-            break;
-          case OpCode.Multiply:
-            _binaryMathOp((a, b) => a * b);
-            break;
-          case OpCode.Divide:
-            _binaryMathOp((a, b) => a / b);
-            break;
-          case OpCode.Modulo:
-            _binaryMathOp((a, b) => a % b);
-            break;
-          case OpCode.Pow:
-            _binaryMathOp((a, b) => pow(a, b) as double);
-            break;
-          case OpCode.Sqrt:
-            _unaryMathOp(sqrt);
-            break;
-          case OpCode.Negate:
-            _unaryMathOp((x) => -x);
-            break;
-          case OpCode.Abs:
-            _unaryMathOp((x) => x.abs());
-            break;
-          case OpCode.Floor:
-            _unaryMathOp((x) => x.floorToDouble());
-            break;
-          case OpCode.Ceil:
-            _unaryMathOp((x) => x.ceilToDouble());
-            break;
-          case OpCode.Round:
-            _unaryMathOp((x) => x.roundToDouble());
-            break;
-          case OpCode.Sin:
-            _unaryMathOp(sin);
-            break;
-          case OpCode.Asin:
-            _unaryMathOp(asin);
-            break;
-          case OpCode.Cos:
-            _unaryMathOp(cos);
-            break;
-          case OpCode.Acos:
-            _unaryMathOp(acos);
-            break;
-          case OpCode.Tan:
-            _unaryMathOp(tan);
-            break;
-          case OpCode.Atan:
-            _unaryMathOp(atan);
-            break;
-          case OpCode.Log:
-            _unaryMathOp(log);
-            break;
-          case OpCode.Log2:
-            _unaryMathOp((x) => log(x) / ln2);
-            break;
-          case OpCode.Log10:
-            _unaryMathOp((x) => log(x) / ln10);
-            break;
-          default:
-            return ErrorResult('Unknown op: $op');
-        }
-      }
-    } finally {
+    if (debugExprVMTraceExecution) {
+      // ignore: avoid_print
+      print('=== Execution End   ===');
+    }
+
+    return result;
+  }
+
+  ExprResult _run(Code code) {
+    _code = ByteData.sublistView(code.code);
+    _objectConstants = code.objectConstants;
+    _stackObjects.clear();
+    _sp = 0;
+    _ip = 0;
+    _errorFlag = false;
+
+    while (true) {
       if (debugExprVMTraceExecution) {
         // ignore: avoid_print
-        print('=== Execution End   ===');
+        print(code.disassembleInstruction(_ip, _code));
       }
 
-      _code = ByteData(0);
-      _objectConstants = [];
-      _stackObjects.clear();
-      _sp = 0;
-      _ip = 0;
+      final op = _loadOp();
+      switch (op) {
+        case OpCode.LoadNull:
+          _pushObject(null);
+          break;
+        case OpCode.LoadTrue:
+          _pushBool(true);
+          break;
+        case OpCode.LoadFalse:
+          _pushBool(false);
+          break;
+        case OpCode.LoadNumber:
+          _loadNumber();
+          break;
+        case OpCode.LoadObject:
+          _loadObject();
+          break;
+        case OpCode.E:
+          _pushNumber(e);
+          break;
+        case OpCode.Ln2:
+          _pushNumber(ln2);
+          break;
+        case OpCode.Pi:
+          _pushNumber(pi);
+          break;
+        case OpCode.ReturnBool:
+          return OkResult(_popBool());
+        case OpCode.ReturnNumber:
+          return OkResult(_popNumber());
+        case OpCode.ReturnObject:
+          return OkResult(_popObject());
+        case OpCode.ReturnError:
+          return const ErrorResult('Expression evaluation failed.');
+        case OpCode.JumpIfNoError:
+          _jumpIfNoError();
+          break;
+        case OpCode.SetErrorFlag:
+          _errorFlag = true;
+          break;
+        case OpCode.LoadObjectAs:
+          _loadObjectAs();
+          break;
+        case OpCode.Not:
+          _unaryMathOp(_not);
+          break;
+        case OpCode.Min:
+          _binaryMathOp(min);
+          break;
+        case OpCode.Max:
+          _binaryMathOp(max);
+          break;
+        case OpCode.Add:
+          _binaryMathOp(_add);
+          break;
+        case OpCode.Subtract:
+          _binaryMathOp(_subtract);
+          break;
+        case OpCode.Multiply:
+          _binaryMathOp(_multiply);
+          break;
+        case OpCode.Divide:
+          _binaryMathOp(_divide);
+          break;
+        case OpCode.Modulo:
+          _binaryMathOp(_modulo);
+          break;
+        case OpCode.Pow:
+          _binaryMathOp(_pow);
+          break;
+        case OpCode.Sqrt:
+          _unaryMathOp(sqrt);
+          break;
+        case OpCode.Negate:
+          _unaryMathOp(_negate);
+          break;
+        case OpCode.Abs:
+          _unaryMathOp(_abs);
+          break;
+        case OpCode.Floor:
+          _unaryMathOp(_floor);
+          break;
+        case OpCode.Ceil:
+          _unaryMathOp(_ceil);
+          break;
+        case OpCode.Round:
+          _unaryMathOp(_round);
+          break;
+        case OpCode.Sin:
+          _unaryMathOp(sin);
+          break;
+        case OpCode.Asin:
+          _unaryMathOp(asin);
+          break;
+        case OpCode.Cos:
+          _unaryMathOp(cos);
+          break;
+        case OpCode.Acos:
+          _unaryMathOp(acos);
+          break;
+        case OpCode.Tan:
+          _unaryMathOp(tan);
+          break;
+        case OpCode.Atan:
+          _unaryMathOp(atan);
+          break;
+        case OpCode.Log:
+          _unaryMathOp(log);
+          break;
+        case OpCode.Log2:
+          _unaryMathOp(_log2);
+          break;
+        case OpCode.Log10:
+          _unaryMathOp(_log10);
+          break;
+        default:
+          return ErrorResult('Unknown op: $op');
+      }
     }
   }
 
+  @pragma('vm:prefer-inline')
   int _loadOp() => _loadUint8();
 
+  @pragma('vm:prefer-inline')
   int _loadUint8() => _code.getUint8(_ip++);
 
+  @pragma('vm:prefer-inline')
   int _loadUint16() {
     final value = _code.getUint16(_ip, Endian.host);
     _ip += Uint16List.bytesPerElement;
     return value;
   }
 
+  @pragma('vm:prefer-inline')
+  int _loadUint32() {
+    final value = _code.getUint32(_ip, Endian.host);
+    _ip += Uint32List.bytesPerElement;
+    return value;
+  }
+
+  @pragma('vm:prefer-inline')
   double _loadFloat64() {
     final value = _code.getFloat64(_ip, Endian.host);
     _ip += Float64List.bytesPerElement;
     return value;
   }
 
+  @pragma('vm:prefer-inline')
   void _pushBool(bool value) => _stack[_sp++] = value ? 1.0 : 0.0;
 
+  @pragma('vm:prefer-inline')
   bool _popBool() => _stack[--_sp] != 0.0;
 
+  @pragma('vm:prefer-inline')
   void _pushNumber(double value) => _stack[_sp++] = value;
 
+  @pragma('vm:prefer-inline')
   double _popNumber() => _stack[--_sp];
 
+  @pragma('vm:prefer-inline')
   void _pushObject(Object? value) {
     _stackObjects.add(value);
     final objectId = _stackObjects.length - 1;
     _stack[_sp++] = objectId.toDouble();
   }
 
+  @pragma('vm:prefer-inline')
   Object? _popObject() {
     final objectId = _stack[--_sp].toInt();
     return _stackObjects.removeAt(objectId);
   }
 
+  @pragma('vm:prefer-inline')
   void _loadNumber() => _pushNumber(_loadFloat64());
 
+  @pragma('vm:prefer-inline')
   void _loadObject() {
     final constantId = _loadUint8();
     _pushObject(_objectConstants[constantId]);
   }
 
+  @pragma('vm:prefer-inline')
   void _jumpIfNoError() {
     if (!_errorFlag) {
       _ip = _loadUint16();
@@ -251,6 +273,7 @@ class _ExprVM implements ExprVM {
     }
   }
 
+  @pragma('vm:prefer-inline')
   void _loadObjectAs() {
     final offset = _loadUint8();
     final type = _loadUint8();
@@ -299,14 +322,61 @@ class _ExprVM implements ExprVM {
     }
   }
 
+  @pragma('vm:prefer-inline')
   void _unaryMathOp(double Function(double x) op) {
-    final offset = _sp - 1;
-    _stack[offset] = op(_stack[offset]);
+    final sp = _sp - 1;
+    _stack[sp] = op(_stack[sp]);
   }
 
+  @pragma('vm:prefer-inline')
   void _binaryMathOp(double Function(double a, double b) op) {
-    final b = _popNumber();
-    final a = _popNumber();
-    _pushNumber(op(a, b));
+    final spB = _sp - 1;
+    final spA = spB - 1;
+    final b = _stack[spB];
+    final a = _stack[spA];
+    _stack[spA] = op(a, b);
+    _sp = spB;
   }
 }
+
+@pragma('vm:prefer-inline')
+double _not(double x) => x == 0 ? 1 : 0;
+
+@pragma('vm:prefer-inline')
+double _add(double a, double b) => a + b;
+
+@pragma('vm:prefer-inline')
+double _subtract(double a, double b) => a - b;
+
+@pragma('vm:prefer-inline')
+double _multiply(double a, double b) => a * b;
+
+@pragma('vm:prefer-inline')
+double _divide(double a, double b) => a / b;
+
+@pragma('vm:prefer-inline')
+double _modulo(double a, double b) => a % b;
+
+@pragma('vm:prefer-inline')
+double _pow(double a, double b) => pow(a, b) as double;
+
+@pragma('vm:prefer-inline')
+double _negate(double x) => -x;
+
+@pragma('vm:prefer-inline')
+double _abs(double x) => x.abs();
+
+@pragma('vm:prefer-inline')
+double _floor(double x) => x.floorToDouble();
+
+@pragma('vm:prefer-inline')
+double _ceil(double x) => x.ceilToDouble();
+
+@pragma('vm:prefer-inline')
+double _round(double x) => x.roundToDouble();
+
+@pragma('vm:prefer-inline')
+double _log2(double x) => log(x) / ln2;
+
+@pragma('vm:prefer-inline')
+double _log10(double x) => log(x) / ln10;

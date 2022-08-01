@@ -23,9 +23,11 @@ class CodeBuilder {
   CodeBuilder() : _objectConstants = <Object?>[];
 
   static final _byteData2 = ByteData(2);
-  static final _byteData2Uint8List = _byteData2.buffer.asUint8List();
+  static final _byteData2Uint8List = Uint8List.sublistView(_byteData2);
+  static final _byteData4 = ByteData(4);
+  static final _byteData4Uint8List = Uint8List.sublistView(_byteData4);
   static final _byteData8 = ByteData(8);
-  static final _byteData8Uint8List = _byteData8.buffer.asUint8List();
+  static final _byteData8Uint8List = Uint8List.sublistView(_byteData8);
 
   final _code = BytesBuilder(copy: true);
   final List<Object?> _objectConstants;
@@ -115,8 +117,14 @@ class CodeBuilder {
 
   void _writeUint16(int value) {
     assert(value >= 0 && value < 0xFFFF);
-    _byteData2.setUint16(0, value);
+    _byteData2.setUint16(0, value, Endian.host);
     _code.add(_byteData2Uint8List);
+  }
+
+  void _writeUint32(int value) {
+    assert(value >= 0 && value < 0xFFFFFFFF);
+    _byteData4.setUint32(0, value, Endian.host);
+    _code.add(_byteData4Uint8List);
   }
 
   int _addConstant(Object? value) {
