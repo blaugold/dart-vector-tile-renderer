@@ -5,6 +5,7 @@ import 'operator.dart';
 import 'type.dart';
 import 'vm.dart';
 
+// TODO: Don't evaluate constant expressions if there are errors.
 class ExprResolver extends ExprVisitor<void> {
   final _context = _ResolveContext();
   final _errors = <ExprError>[];
@@ -23,6 +24,7 @@ class ExprResolver extends ExprVisitor<void> {
   @override
   void visitRootExpr(RootExpr expr) {
     _resolve(expr.expr);
+
     expr
       ..type = expr.expr.type
       ..mayFail = expr.expr.mayFail
@@ -65,7 +67,9 @@ class ExprResolver extends ExprVisitor<void> {
       _error(expr, 'Unknown operator: ${expr.name}');
       return;
     }
-    final resolveResult = operatorDefinition.resolve(expr.arguments, _context);
+    final resolveResult = operatorDefinition.resolve(expr, _context);
+
+    _errors.addAll(resolveResult.errors);
 
     expr
       ..type = resolveResult.type
@@ -78,8 +82,6 @@ class ExprResolver extends ExprVisitor<void> {
         expr.constantResult = constantResult;
       }
     }
-
-    _errors.addAll(resolveResult.errors);
   }
 
   void _error(Expr expr, String message) =>

@@ -51,6 +51,8 @@ final opCodeGroups = [
     'Not',
   ]),
   OpCodeGroup('Arithmetic', [
+    'Min',
+    'Max',
     'Add',
     'Subtract',
     'Multiply',

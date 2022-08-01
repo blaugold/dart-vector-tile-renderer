@@ -36,8 +36,19 @@ void main() {
     });
 
     group('arithmetic', () {
+      test('min', () {
+        evaluateConstant(['min', 1, 2], okResult(1));
+        evaluateConstant(['min', 0, 1, 2], okResult(0));
+      });
+
+      test('max', () {
+        evaluateConstant(['max', 1, 2], okResult(2));
+        evaluateConstant(['max', 1, 2, 3], okResult(3));
+      });
+
       test('+', () {
         evaluateConstant(['+', 1, 2], okResult(3));
+        evaluateConstant(['+', 1, 2, 3], okResult(6));
       });
 
       test('-', () {
@@ -46,6 +57,7 @@ void main() {
 
       test('*', () {
         evaluateConstant(['*', 2, 3], okResult(6));
+        evaluateConstant(['*', 2, 3, 4], okResult(24));
       });
 
       test('/', () {

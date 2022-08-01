@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:collection/collection.dart';
 
 import 'ast.dart';
@@ -11,7 +13,7 @@ import 'vm.dart';
 abstract class OperatorDefinition {
   const OperatorDefinition();
 
-  ResolveOperatorResult resolve(List<Expr> arguments, ResolveContext context);
+  ResolveOperatorResult resolve(OperatorExpr expr, ResolveContext context);
 
   void compile(OperatorExpr expr, CompileContext context);
 }
@@ -32,31 +34,6 @@ class ResolveOperatorResult {
   final List<ExprError> errors;
 }
 
-bool checkArgumentType(
-  Expr argument,
-  ExprType parameterType,
-  List<ExprError> errors,
-) {
-  if (parameterType.isAssignableFrom(argument.type)) {
-    return false;
-  }
-
-  if (dynamicType == argument.type) {
-    return true;
-  }
-
-  errors.add(
-    ExprError(
-      argument,
-      '${argument.type} is not assignable to $parameterType.',
-    ),
-  );
-
-  // Does not matter what we return here since the operator will never be
-  // executed.
-  return false;
-}
-
 OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
   switch (expr.name) {
     case 'e':
@@ -70,19 +47,21 @@ OperatorDefinition? resolveOperatorDefinition(OperatorExpr expr) {
         Op.Not,
         argumentsType: boolType,
         type: boolType,
-        argumentCount: 1,
+        minArgumentCount: 1,
+        maxArgumentCount: 1,
       );
     // TODO: distance
-    // TODO: max, min
+    case 'min':
+      return const NaryMathOperator(Op.Min);
+    case 'max':
+      return const NaryMathOperator(Op.Max);
     case '+':
-      // TODO: Variadic +
-      return const BinaryMathOperator(Op.Add);
+      return const NaryMathOperator(Op.Add);
     case '-':
       // TODO: Unary -
       return const BinaryMathOperator(Op.Subtract);
     case '*':
-      // TODO: Variadic *
-      return const BinaryMathOperator(Op.Multiply);
+      return const NaryMathOperator(Op.Multiply);
     case '/':
       return const BinaryMathOperator(Op.Divide);
     case '%':
@@ -129,7 +108,7 @@ class ConstantOperator extends OperatorDefinition {
   final Op op;
 
   @override
-  ResolveOperatorResult resolve(List<Expr> arguments, ResolveContext context) =>
+  ResolveOperatorResult resolve(OperatorExpr expr, ResolveContext context) =>
       ResolveOperatorResult(
         type: type,
         mayFail: false,
@@ -142,26 +121,72 @@ class ConstantOperator extends OperatorDefinition {
       context.code.writeOp(op);
 }
 
+class UnaryMathOperator extends SimpleOperatorDefinition {
+  const UnaryMathOperator(super.op)
+      : super(
+          argumentsType: numberType,
+          type: numberType,
+          minArgumentCount: 1,
+          maxArgumentCount: 1,
+        );
+}
+
+class BinaryMathOperator extends SimpleOperatorDefinition {
+  const BinaryMathOperator(super.op)
+      : super(
+          argumentsType: numberType,
+          type: numberType,
+          minArgumentCount: 2,
+          maxArgumentCount: 2,
+        );
+}
+
+class NaryMathOperator extends SimpleOperatorDefinition {
+  const NaryMathOperator(super.op)
+      : super(
+          argumentsType: numberType,
+          type: numberType,
+          minArgumentCount: 2,
+          maxArgumentCount: null,
+        );
+}
+
 class SimpleOperatorDefinition extends OperatorDefinition {
   const SimpleOperatorDefinition(
     this.op, {
     required this.argumentsType,
     required this.type,
-    required this.argumentCount,
+    required this.minArgumentCount,
+    required this.maxArgumentCount,
   });
 
   final Op op;
   final ExprType argumentsType;
   final ExprType type;
-  final int argumentCount;
+  final int minArgumentCount;
+  final int? maxArgumentCount;
 
   @override
-  ResolveOperatorResult resolve(List<Expr> arguments, ResolveContext context) {
+  ResolveOperatorResult resolve(
+    OperatorExpr expr,
+    ResolveContext context,
+  ) {
     var mayFail = false;
     final errors = <ExprError>[];
 
-    arguments.forEachIndexed((index, argument) {
-      if (index < argumentCount) {
+    if (expr.arguments.length < minArgumentCount) {
+      errors.add(
+        ExprError(
+          expr,
+          'Expected at least $minArgumentCount arguments, but got '
+          '${expr.arguments.length}.',
+        ),
+      );
+    }
+
+    final maxArgumentCount = this.maxArgumentCount;
+    expr.arguments.forEachIndexed((index, argument) {
+      if (maxArgumentCount == null || index < maxArgumentCount) {
         mayFail = mayFail ||
             argument.mayFail ||
             checkArgumentType(argument, argumentsType, errors);
@@ -174,7 +199,7 @@ class SimpleOperatorDefinition extends OperatorDefinition {
       type: type,
       mayFail: mayFail,
       errors: errors,
-      isConstant: arguments.every((argument) => argument.isConstant),
+      isConstant: expr.arguments.every((argument) => argument.isConstant),
     );
   }
 
@@ -199,28 +224,39 @@ class SimpleOperatorDefinition extends OperatorDefinition {
       }
     });
 
-    // Generate the operator call.
-    for (var i = 0; i < argumentCount; i++) {
+    // Generate the operator calls.
+    final argumentCount = expr.arguments.length;
+    if (argumentCount > 1) {
       context.pop();
     }
-    context.code.writeOp(op);
+    for (var i = 0; i < max(argumentCount - 1, 1); i++) {
+      context.pop();
+      context.code.writeOp(op);
+    }
   }
 }
 
-class UnaryMathOperator extends SimpleOperatorDefinition {
-  const UnaryMathOperator(super.op)
-      : super(
-          argumentsType: numberType,
-          type: numberType,
-          argumentCount: 1,
-        );
-}
+bool checkArgumentType(
+  Expr argument,
+  ExprType parameterType,
+  List<ExprError> errors,
+) {
+  if (parameterType.isAssignableFrom(argument.type)) {
+    return false;
+  }
 
-class BinaryMathOperator extends SimpleOperatorDefinition {
-  const BinaryMathOperator(super.op)
-      : super(
-          argumentsType: numberType,
-          type: numberType,
-          argumentCount: 2,
-        );
+  if (dynamicType == argument.type) {
+    return true;
+  }
+
+  errors.add(
+    ExprError(
+      argument,
+      '${argument.type} is not assignable to $parameterType.',
+    ),
+  );
+
+  // Does not matter what we return here since the operator will never be
+  // executed.
+  return false;
 }

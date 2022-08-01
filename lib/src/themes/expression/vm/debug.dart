@@ -114,6 +114,8 @@ extension DisassembleExt on Code {
         buffer.writeInstructionAddress(jumpAddress);
         break;
       case Op.Not:
+      case Op.Min:
+      case Op.Max:
       case Op.Add:
       case Op.Subtract:
       case Op.Multiply:

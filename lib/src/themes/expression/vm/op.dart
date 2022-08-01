@@ -27,26 +27,28 @@ class OpCode {
   static const Not = 15;
 
   // Arithmetic
-  static const Add = 16;
-  static const Subtract = 17;
-  static const Multiply = 18;
-  static const Divide = 19;
-  static const Modulo = 20;
-  static const Pow = 21;
-  static const Sqrt = 22;
-  static const Abs = 23;
-  static const Ceil = 24;
-  static const Floor = 25;
-  static const Round = 26;
-  static const Sin = 27;
-  static const Asin = 28;
-  static const Cos = 29;
-  static const Acos = 30;
-  static const Tan = 31;
-  static const Atan = 32;
-  static const Log = 33;
-  static const Log2 = 34;
-  static const Log10 = 35;
+  static const Min = 16;
+  static const Max = 17;
+  static const Add = 18;
+  static const Subtract = 19;
+  static const Multiply = 20;
+  static const Divide = 21;
+  static const Modulo = 22;
+  static const Pow = 23;
+  static const Sqrt = 24;
+  static const Abs = 25;
+  static const Ceil = 26;
+  static const Floor = 27;
+  static const Round = 28;
+  static const Sin = 29;
+  static const Asin = 30;
+  static const Cos = 31;
+  static const Acos = 32;
+  static const Tan = 33;
+  static const Atan = 34;
+  static const Log = 35;
+  static const Log2 = 36;
+  static const Log10 = 37;
 }
 
 enum Op {
@@ -71,6 +73,8 @@ enum Op {
   // Boolean logic
   Not(OpCode.Not),
   // Arithmetic
+  Min(OpCode.Min),
+  Max(OpCode.Max),
   Add(OpCode.Add),
   Subtract(OpCode.Subtract),
   Multiply(OpCode.Multiply),

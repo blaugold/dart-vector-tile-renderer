@@ -113,6 +113,12 @@ class _ExprVM implements ExprVM {
           case OpCode.Not:
             _unaryMathOp((x) => x == 0 ? 1 : 0);
             break;
+          case OpCode.Min:
+            _binaryMathOp(min);
+            break;
+          case OpCode.Max:
+            _binaryMathOp(max);
+            break;
           case OpCode.Add:
             _binaryMathOp((a, b) => a + b);
             break;
