@@ -7,6 +7,8 @@ import 'code.dart';
 import 'debug.dart';
 import 'op.dart';
 
+typedef _Stack = Float64List;
+
 abstract class ExprVM {
   factory ExprVM() = _ExprVM;
 
@@ -44,14 +46,8 @@ class ErrorResult extends ExprResult implements Exception {
 class _ExprVM implements ExprVM {
   static const _stackSize = 8 * 1024; // 8 KB
 
-  var _code = ByteData(0);
-  var _objectConstants = <Object?>[];
-  final _stack = Float64List(_stackSize ~/ Float64List.bytesPerElement);
-  final _stackObjects = <Object?>[];
-  var _sp = 0;
-  var _ip = 0;
-  var _errorFlag = false;
-  ExprResult? _result;
+  static final _stack = Float64List(_stackSize ~/ Float64List.bytesPerElement);
+  static final _objectStack = <Object?>[];
 
   @override
   ExprResult run(Code code) {
@@ -71,391 +67,360 @@ class _ExprVM implements ExprVM {
   }
 
   ExprResult _run(Code code) {
-    _code = ByteData.sublistView(code.code);
-    _objectConstants = code.objectConstants;
-    _stackObjects.clear();
-    _sp = 0;
-    _ip = 0;
-    _errorFlag = false;
-    _result = null;
+    final instructions = ByteData.sublistView(code.code);
+    final objectConstants = code.objectConstants;
+    final stack = _stack;
+    final objectStack = _objectStack;
+    objectStack.clear();
+    var sp = -1;
+    var ip = 0;
+    var errorFlag = false;
 
-    while (_result == null) {
+    while (ip < instructions.lengthInBytes) {
       if (debugExprVMTraceExecution) {
         // ignore: avoid_print
-        print(code.disassembleInstruction(_ip, _code));
+        print(code.disassembleInstruction(ip, instructions));
       }
 
-      final op = _loadOp();
+      final op = _readOp(instructions, ip);
+      ip = _consumeOp(ip);
       switch (op) {
         case OpCode.LoadNull:
-          _LoadNull();
+          sp = _pushObject(null, sp, stack, objectStack);
           break;
         case OpCode.LoadTrue:
-          _LoadTrue();
+          sp = _pushBool(true, sp, stack);
           break;
         case OpCode.LoadFalse:
-          _LoadFalse();
+          sp = _pushBool(false, sp, stack);
           break;
         case OpCode.LoadNumber:
-          _LoadNumber();
+          final value = _readNumber(instructions, ip);
+          ip = _consumeNumber(ip);
+          sp = _pushNumber(value, sp, stack);
           break;
         case OpCode.LoadObject:
-          _LoadObject();
+          final objectId = _readObjectId(instructions, ip);
+          ip = _consumeObjectId(ip);
+          sp = _pushObject(objectConstants[objectId], sp, stack, objectStack);
           break;
         case OpCode.E:
-          _E();
+          sp = _pushNumber(e, sp, stack);
           break;
         case OpCode.Ln2:
-          _Ln2();
+          sp = _pushNumber(ln2, sp, stack);
           break;
         case OpCode.Pi:
-          _Pi();
+          sp = _pushNumber(pi, sp, stack);
           break;
         case OpCode.ReturnBool:
-          _ReturnBool();
-          break;
+          final value = _loadBool(sp, stack);
+          sp = _popBool(sp);
+          return OkResult(value);
         case OpCode.ReturnNumber:
-          _ReturnNumber();
-          break;
+          final value = _loadNumber(sp, stack);
+          sp = _popNumber(sp);
+          return OkResult(value);
         case OpCode.ReturnObject:
-          _ReturnObject();
-          break;
+          final value = _loadObject(objectStack);
+          sp = _popObject(sp, objectStack);
+          return OkResult(value);
         case OpCode.ReturnError:
-          _ReturnError();
-          break;
+          return const ErrorResult('Expression evaluation failed.');
         case OpCode.JumpIfNoError:
-          _JumpIfNoError();
+          if (!errorFlag) {
+            ip = _readJumpAddress(instructions, ip);
+          } else {
+            errorFlag = false;
+            ip = _consumeJumpAddress(ip);
+          }
           break;
         case OpCode.SetErrorFlag:
-          _SetErrorFlag();
+          errorFlag = true;
           break;
         case OpCode.LoadObjectAs:
-          _LoadObjectAs();
+          final stackOffset = _readStackOffset(instructions, ip);
+          ip = _consumeStackOffset(ip);
+          final type = _readTypedId(instructions, ip);
+          ip = _consumeTypedId(ip);
+          final stackIndex = sp - stackOffset;
+          final objectStackIndex = stack[stackIndex].toInt();
+          final object = objectStack.removeAt(objectStackIndex);
+
+          var checkSucceeded = false;
+          switch (type) {
+            case 0: // Bool
+              if (object is bool) {
+                checkSucceeded = true;
+                stack[stackIndex] = object ? 1.0 : 0.0;
+              }
+              break;
+            case 1: // Number
+              if (object is double) {
+                checkSucceeded = true;
+                stack[stackIndex] = object;
+              }
+              break;
+            default:
+              assert(false, 'Unknown type id: $type');
+          }
+
+          if (checkSucceeded) {
+            // Consume the unused arguments.
+            ip = _consumePopCount(ip);
+            ip = _consumeJumpAddress(ip);
+          } else {
+            // Clean up the stack.
+            final popCount = _readPopCount(instructions, ip);
+            ip = _consumePopCount(ip);
+            final valuesToPop = _decodeTotalPopCount(popCount);
+            final objectsToPop = _decodeObjectPopCount(popCount);
+            sp -= valuesToPop;
+            objectStack.removeRange(
+              // -1 because we already removed the target object.
+              objectStack.length - (objectsToPop - 1),
+              objectStack.length,
+            );
+
+            // Jump to the error handler.
+            final errorHandlerAddress = _readJumpAddress(instructions, ip);
+            errorFlag = true;
+            ip = errorHandlerAddress;
+          }
           break;
         case OpCode.Not:
-          _Not();
+          _unaryMathOp(sp, stack, _not);
           break;
         case OpCode.Min:
-          _Min();
+          sp = _binaryMathOp(sp, stack, min);
           break;
         case OpCode.Max:
-          _Max();
+          sp = _binaryMathOp(sp, stack, max);
           break;
         case OpCode.Add:
-          _Add();
+          sp = _binaryMathOp(sp, stack, _add);
           break;
         case OpCode.Subtract:
-          _Subtract();
+          sp = _binaryMathOp(sp, stack, _subtract);
           break;
         case OpCode.Multiply:
-          _Multiply();
+          sp = _binaryMathOp(sp, stack, _multiply);
           break;
         case OpCode.Divide:
-          _Divide();
+          sp = _binaryMathOp(sp, stack, _divide);
           break;
         case OpCode.Modulo:
-          _Modulo();
+          sp = _binaryMathOp(sp, stack, _modulo);
           break;
         case OpCode.Pow:
-          _Pow();
+          sp = _binaryMathOp(sp, stack, _pow);
           break;
         case OpCode.Sqrt:
-          _Sqrt();
+          _unaryMathOp(sp, stack, sqrt);
           break;
         case OpCode.Negate:
-          _Negate();
+          _unaryMathOp(sp, stack, _negate);
           break;
         case OpCode.Abs:
-          _Abs();
+          _unaryMathOp(sp, stack, _abs);
           break;
         case OpCode.Floor:
-          _Floor();
+          _unaryMathOp(sp, stack, _floor);
           break;
         case OpCode.Ceil:
-          _Ceil();
+          _unaryMathOp(sp, stack, _ceil);
           break;
         case OpCode.Round:
-          _Round();
+          _unaryMathOp(sp, stack, _round);
           break;
         case OpCode.Sin:
-          _Sin();
+          _unaryMathOp(sp, stack, sin);
           break;
         case OpCode.Asin:
-          _Asin();
+          _unaryMathOp(sp, stack, asin);
           break;
         case OpCode.Cos:
-          _Cos();
+          _unaryMathOp(sp, stack, cos);
           break;
         case OpCode.Acos:
-          _Acos();
+          _unaryMathOp(sp, stack, acos);
           break;
         case OpCode.Tan:
-          _Tan();
+          _unaryMathOp(sp, stack, tan);
           break;
         case OpCode.Atan:
-          _Atan();
+          _unaryMathOp(sp, stack, atan);
           break;
         case OpCode.Log:
-          _Log();
+          _unaryMathOp(sp, stack, log);
           break;
         case OpCode.Log2:
-          _Log2();
+          _unaryMathOp(sp, stack, _log2);
           break;
         case OpCode.Log10:
-          _Log10();
+          _unaryMathOp(sp, stack, _log10);
           break;
         default:
-          _result = ErrorResult('Unknown op: $op');
-          break;
+          throw StateError('Unknown opcode: $op');
       }
     }
 
-    return _result!;
+    throw StateError('Expression did not return a value.');
   }
+}
 
-  @pragma('vm:prefer-inline')
-  int _loadOp() => _loadUint8();
+@pragma('vm:prefer-inline')
+int _readUint8(ByteData instructions, int ip) => instructions.getUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  int _loadUint8() => _code.getUint8(_ip++);
+@pragma('vm:prefer-inline')
+int _consumeUint8(int ip) => ip + 1;
 
-  @pragma('vm:prefer-inline')
-  int _loadUint16() {
-    final value = _code.getUint16(_ip, Endian.host);
-    _ip += Uint16List.bytesPerElement;
-    return value;
-  }
+@pragma('vm:prefer-inline')
+int _readUint16(ByteData instructions, int ip) =>
+    instructions.getUint16(ip, Endian.host);
 
-  @pragma('vm:prefer-inline')
-  int _loadUint32() {
-    final value = _code.getUint32(_ip, Endian.host);
-    _ip += Uint32List.bytesPerElement;
-    return value;
-  }
+@pragma('vm:prefer-inline')
+int _consumeUint16(int ip) => ip + Uint16List.bytesPerElement;
 
-  @pragma('vm:prefer-inline')
-  double _loadFloat64() {
-    final value = _code.getFloat64(_ip, Endian.host);
-    _ip += Float64List.bytesPerElement;
-    return value;
-  }
+@pragma('vm:prefer-inline')
+int _readUint32(ByteData instructions, int ip) =>
+    instructions.getUint32(ip, Endian.host);
 
-  @pragma('vm:prefer-inline')
-  void _pushBool(bool value) => _stack[_sp++] = value ? 1.0 : 0.0;
+@pragma('vm:prefer-inline')
+int _consumeUint32(int ip) => ip + Uint32List.bytesPerElement;
 
-  @pragma('vm:prefer-inline')
-  bool _popBool() => _stack[--_sp] != 0.0;
+@pragma('vm:prefer-inline')
+double _readFloat64(ByteData instructions, int ip) =>
+    instructions.getFloat64(ip, Endian.host);
 
-  @pragma('vm:prefer-inline')
-  void _pushNumber(double value) => _stack[_sp++] = value;
+@pragma('vm:prefer-inline')
+int _consumeFloat64(int ip) => ip + Float64List.bytesPerElement;
 
-  @pragma('vm:prefer-inline')
-  double _popNumber() => _stack[--_sp];
+@pragma('vm:prefer-inline')
+int _readOp(ByteData instructions, int ip) => _readUint8(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _pushObject(Object? value) {
-    _stackObjects.add(value);
-    final objectId = _stackObjects.length - 1;
-    _stack[_sp++] = objectId.toDouble();
-  }
+@pragma('vm:prefer-inline')
+int _consumeOp(int ip) => _consumeUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  Object? _popObject() {
-    final objectId = _stack[--_sp].toInt();
-    return _stackObjects.removeAt(objectId);
-  }
+@pragma('vm:prefer-inline')
+double _readNumber(ByteData instructions, int ip) =>
+    _readFloat64(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _unaryMathOp(double Function(double x) op) {
-    final sp = _sp - 1;
-    _stack[sp] = op(_stack[sp]);
-  }
+@pragma('vm:prefer-inline')
+int _consumeNumber(int ip) => _consumeFloat64(ip);
 
-  @pragma('vm:prefer-inline')
-  void _binaryMathOp(double Function(double a, double b) op) {
-    final spB = _sp - 1;
-    final spA = spB - 1;
-    final b = _stack[spB];
-    final a = _stack[spA];
-    _stack[spA] = op(a, b);
-    _sp = spB;
-  }
+@pragma('vm:prefer-inline')
+int _readObjectId(ByteData instructions, int ip) =>
+    _readUint8(instructions, ip);
 
-  // === Ops ===================================================================
+@pragma('vm:prefer-inline')
+int _consumeObjectId(int ip) => _consumeUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  void _LoadNull() => _pushObject(null);
+@pragma('vm:prefer-inline')
+int _readJumpAddress(ByteData instructions, int ip) =>
+    _readUint16(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _LoadTrue() => _pushObject(true);
+@pragma('vm:prefer-inline')
+int _consumeJumpAddress(int ip) => _consumeUint16(ip);
 
-  @pragma('vm:prefer-inline')
-  void _LoadFalse() => _pushObject(false);
+@pragma('vm:prefer-inline')
+int _readStackOffset(ByteData instructions, int ip) =>
+    _readUint8(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _LoadNumber() => _pushNumber(_loadFloat64());
+@pragma('vm:prefer-inline')
+int _consumeStackOffset(int ip) => _consumeUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  void _LoadObject() {
-    final constantId = _loadUint8();
-    _pushObject(_objectConstants[constantId]);
-  }
+@pragma('vm:prefer-inline')
+int _readTypedId(ByteData instructions, int ip) => _readUint8(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _E() => _pushNumber(e);
+@pragma('vm:prefer-inline')
+int _consumeTypedId(int ip) => _consumeUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  void _Ln2() => _pushNumber(ln2);
+@pragma('vm:prefer-inline')
+int _readPopCount(ByteData instructions, int ip) =>
+    _readUint8(instructions, ip);
 
-  @pragma('vm:prefer-inline')
-  void _Pi() => _pushNumber(pi);
+@pragma('vm:prefer-inline')
+int _consumePopCount(int ip) => _consumeUint8(ip);
 
-  @pragma('vm:prefer-inline')
-  void _ReturnBool() => _result = OkResult(_popBool());
+@pragma('vm:prefer-inline')
+int _decodeTotalPopCount(int popCount) => popCount >> 4;
 
-  @pragma('vm:prefer-inline')
-  void _ReturnNumber() => _result = OkResult(_popNumber());
+@pragma('vm:prefer-inline')
+int _decodeObjectPopCount(int popCount) => popCount & 0x0F;
 
-  @pragma('vm:prefer-inline')
-  void _ReturnObject() => _result = OkResult(_popObject());
+@pragma('vm:prefer-inline')
+int _pushBool(
+  bool value,
+  int sp,
+  _Stack stack,
+) =>
+    _pushNumber(value ? 1 : 0, sp, stack);
 
-  @pragma('vm:prefer-inline')
-  void _ReturnError() =>
-      _result = const ErrorResult('Expression evaluation failed.');
+@pragma('vm:prefer-inline')
+int _pushNumber(double value, int sp, _Stack stack) {
+  stack[++sp] = value;
+  return sp;
+}
 
-  @pragma('vm:prefer-inline')
-  void _JumpIfNoError() {
-    if (!_errorFlag) {
-      _ip = _loadUint16();
-    } else {
-      _errorFlag = false;
-      _ip += Uint16List.bytesPerElement;
-    }
-  }
+@pragma('vm:prefer-inline')
+int _pushObject(
+  Object? value,
+  int sp,
+  _Stack stack,
+  List<Object?> stackObjects,
+) {
+  final objectId = stackObjects.length;
+  stackObjects.add(value);
+  stack[++sp] = objectId.toDouble();
+  return sp;
+}
 
-  @pragma('vm:prefer-inline')
-  void _SetErrorFlag() => _errorFlag = true;
+@pragma('vm:prefer-inline')
+bool _loadBool(int sp, _Stack stack) => stack[sp] != 0.0;
 
-  @pragma('vm:prefer-inline')
-  void _LoadObjectAs() {
-    final offset = _loadUint8();
-    final type = _loadUint8();
-    final stackOffset = _sp - 1 - offset;
-    final objectStackOffset = _stack[stackOffset].toInt();
-    final object = _stackObjects.removeAt(objectStackOffset);
+@pragma('vm:prefer-inline')
+int _popBool(int sp) => sp - 1;
 
-    var checkSucceeded = false;
-    switch (type) {
-      case 0: // Bool
-        if (object is bool) {
-          checkSucceeded = true;
-          _stack[stackOffset] = object ? 1.0 : 0.0;
-        }
-        break;
-      case 1: // Number
-        if (object is double) {
-          checkSucceeded = true;
-          _stack[stackOffset] = object;
-          return;
-        }
-        break;
-      default:
-        assert(false, 'Unknown type id: $type');
-    }
+@pragma('vm:prefer-inline')
+double _loadNumber(int sp, _Stack stack) => stack[sp];
 
-    if (checkSucceeded) {
-      // Consume the unused arguments.
-      _ip += Uint8List.bytesPerElement + Uint16List.bytesPerElement;
-    } else {
-      // Clean up the stack.
-      final encodedValuesToPop = _loadUint8();
-      final valuesToPop = encodedValuesToPop >> 4;
-      final objectsToPop = encodedValuesToPop & 0x0F;
-      _sp -= valuesToPop;
-      _stackObjects.removeRange(
-        // -1 because we already removed the target object.
-        _stackObjects.length - (objectsToPop - 1),
-        _stackObjects.length,
-      );
+@pragma('vm:prefer-inline')
+int _popNumber(int sp) => sp - 1;
 
-      // Jump to the error handler.
-      final errorHandlerAddress = _loadUint16();
-      _errorFlag = true;
-      _ip = errorHandlerAddress;
-    }
-  }
+@pragma('vm:prefer-inline')
+Object? _loadObject(List<Object?> objectStack) {
+  // Since we loading the object at the top of the stack it must be the last
+  // object on the object stack and we don't need to look up the index in the
+  // stack.
+  return objectStack.last;
+}
 
-  @pragma('vm:prefer-inline')
-  void _Not() => _unaryMathOp(_not);
+@pragma('vm:prefer-inline')
+int _popObject(int sp, List<Object?> objectStack) {
+  // Since we are popping the object it must be the last object on the object
+  // stack and we don't need to look up the index in the stack.
+  objectStack.removeLast();
+  return sp - 1;
+}
 
-  @pragma('vm:prefer-inline')
-  void _Min() => _binaryMathOp(min);
+@pragma('vm:prefer-inline')
+void _unaryMathOp(int sp, _Stack stack, double Function(double x) op) {
+  stack[sp] = op(stack[sp]);
+}
 
-  @pragma('vm:prefer-inline')
-  void _Max() => _binaryMathOp(max);
-
-  @pragma('vm:prefer-inline')
-  void _Add() => _binaryMathOp(_add);
-
-  @pragma('vm:prefer-inline')
-  void _Subtract() => _binaryMathOp(_subtract);
-
-  @pragma('vm:prefer-inline')
-  void _Multiply() => _binaryMathOp(_multiply);
-
-  @pragma('vm:prefer-inline')
-  void _Divide() => _binaryMathOp(_divide);
-
-  @pragma('vm:prefer-inline')
-  void _Modulo() => _binaryMathOp(_modulo);
-
-  @pragma('vm:prefer-inline')
-  void _Pow() => _binaryMathOp(_pow);
-
-  @pragma('vm:prefer-inline')
-  void _Sqrt() => _unaryMathOp(sqrt);
-
-  @pragma('vm:prefer-inline')
-  void _Negate() => _unaryMathOp(_negate);
-
-  @pragma('vm:prefer-inline')
-  void _Abs() => _unaryMathOp(_abs);
-
-  @pragma('vm:prefer-inline')
-  void _Floor() => _unaryMathOp(_floor);
-
-  @pragma('vm:prefer-inline')
-  void _Ceil() => _unaryMathOp(_ceil);
-
-  @pragma('vm:prefer-inline')
-  void _Round() => _unaryMathOp(_round);
-
-  @pragma('vm:prefer-inline')
-  void _Sin() => _unaryMathOp(sin);
-
-  @pragma('vm:prefer-inline')
-  void _Asin() => _unaryMathOp(asin);
-
-  @pragma('vm:prefer-inline')
-  void _Cos() => _unaryMathOp(cos);
-
-  @pragma('vm:prefer-inline')
-  void _Acos() => _unaryMathOp(acos);
-
-  @pragma('vm:prefer-inline')
-  void _Tan() => _unaryMathOp(tan);
-
-  @pragma('vm:prefer-inline')
-  void _Atan() => _unaryMathOp(atan);
-
-  @pragma('vm:prefer-inline')
-  void _Log() => _unaryMathOp(log);
-
-  @pragma('vm:prefer-inline')
-  void _Log2() => _unaryMathOp(_log2);
-
-  @pragma('vm:prefer-inline')
-  void _Log10() => _unaryMathOp(_log10);
+@pragma('vm:prefer-inline')
+int _binaryMathOp(
+  int sp,
+  _Stack stack,
+  double Function(double a, double b) op,
+) {
+  final indexB = sp;
+  final indexA = indexB - 1;
+  final b = stack[indexB];
+  final a = stack[indexA];
+  stack[indexA] = op(a, b);
+  return indexA;
 }
 
 @pragma('vm:prefer-inline')
