@@ -69,7 +69,6 @@ class CodeBuilder {
     required int offset,
     required ExprType type,
     required int valuesToPop,
-    required int objectsToPop,
     required CodeLocation errorHandler,
   }) {
     if (offset >= 0xFF) {
@@ -78,14 +77,6 @@ class CodeBuilder {
 
     if (valuesToPop >= 0x0F) {
       throw ArgumentError('CheckType can pop at most 16 values.');
-    }
-    if (objectsToPop >= 0x0F) {
-      throw ArgumentError('CheckType can pop ast most 16 objects.');
-    }
-    if (objectsToPop > valuesToPop) {
-      throw ArgumentError(
-        'CheckType cannot pop more objects than total values.',
-      );
     }
 
     writeOp(Op.LoadObjectAs);
@@ -97,7 +88,7 @@ class CodeBuilder {
     } else {
       throw UnsupportedError('CheckType does not support $type.');
     }
-    _writeUint8((valuesToPop << 4) | objectsToPop);
+    _writeUint8(valuesToPop);
     _writeLocation(errorHandler);
   }
 

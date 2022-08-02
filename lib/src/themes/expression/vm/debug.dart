@@ -101,13 +101,10 @@ extension DisassembleExt on Code {
         buffer.writeId(typeId);
 
         final encodedValuesToPop = code.getUint8(offset++);
-        final valuesToPop = encodedValuesToPop >> 4;
-        final objectsToPop = encodedValuesToPop & 0x0F;
+        final valuesToPop = encodedValuesToPop;
         buffer.write(' pop ');
         buffer.write(valuesToPop);
-        buffer.write(' value(s) including ');
-        buffer.write(objectsToPop);
-        buffer.write(' object(s); ');
+        buffer.write(' value(s);');
 
         final jumpAddress = code.getUint16(offset, Endian.host);
         offset += Uint16List.bytesPerElement;

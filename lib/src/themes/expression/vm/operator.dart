@@ -203,16 +203,14 @@ class SimpleOperatorDefinition extends OperatorDefinition {
     expr.arguments.forEach(context.compileExpr);
 
     // Generate type checks for dynamic arguments.
-    var dynamicArguments =
-        expr.arguments.where((argument) => argument.type == dynamicType).length;
-
     expr.arguments.reversed.forEachIndexed((index, argument) {
       if (argument.type == dynamicType) {
         context.code.loadObjectAs(
           offset: index,
           type: argumentsType,
+          // TODO: This needs to also pop values on stack from other
+          // operators.
           valuesToPop: expr.arguments.length,
-          objectsToPop: dynamicArguments--,
           errorHandler: context.errorHandler,
         );
       }

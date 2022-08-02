@@ -7,7 +7,7 @@ import 'code.dart';
 import 'debug.dart';
 import 'op.dart';
 
-typedef _Stack = Float64List;
+typedef _Stack = _StackValue;
 
 abstract class ExprVM {
   factory ExprVM() = _ExprVM;
@@ -43,11 +43,109 @@ class ErrorResult extends ExprResult implements Exception {
   String toString() => 'Expression evaluation error: $message';
 }
 
+class _StackValue {
+  _StackValue();
+
+  factory _StackValue.createStack(int size) {
+    var i = 0;
+    var stack = _StackValue();
+
+    while (i < size) {
+      final value = _StackValue();
+      stack.previous = value;
+      value.next = stack;
+      stack = value;
+      i++;
+    }
+
+    return stack;
+  }
+
+  bool get isBeforeFirst => previous == null;
+
+  double value = 0;
+  Object? object;
+  _StackValue? next;
+  _StackValue? previous;
+
+  @pragma('vm:prefer-inline')
+  _StackValue get(int offset) {
+    var stack = this;
+    while (offset > 0) {
+      final previous = stack.previous;
+      if (previous == null) {
+        throw Exception('Stack underflow.');
+      }
+      stack = previous;
+      offset--;
+    }
+    return stack;
+  }
+
+  _StackValue reset() {
+    var stack = this;
+    while (true) {
+      stack.value = 0;
+      stack.object = null;
+      final previous = stack.previous;
+      if (previous == null) {
+        break;
+      }
+      stack = previous;
+    }
+
+    return stack;
+  }
+
+  @pragma('vm:prefer-inline')
+  _StackValue push(double value) {
+    var next = this.next;
+    if (next == null) {
+      next = _StackValue();
+      next.previous = this;
+      this.next = next;
+    }
+    next.value = value;
+    return next;
+  }
+
+  @pragma('vm:prefer-inline')
+  _StackValue pushObject(Object? object) {
+    var next = this.next;
+    if (next == null) {
+      next = _StackValue();
+      next.previous = this;
+      this.next = next;
+    }
+    next.object = object;
+    return next;
+  }
+
+  @pragma('vm:prefer-inline')
+  _StackValue pop() {
+    final previous = this.previous;
+    if (previous == null) {
+      throw Exception('Stack underflow.');
+    }
+    return previous;
+  }
+
+  @pragma('vm:prefer-inline')
+  _StackValue popObject() {
+    final previous = this.previous;
+    if (previous == null) {
+      throw Exception('Stack underflow.');
+    }
+    previous.object = null;
+    return previous;
+  }
+}
+
 class _ExprVM implements ExprVM {
   static const _stackSize = 8 * 1024; // 8 KB
 
-  static final _stack = Float64List(_stackSize ~/ Float64List.bytesPerElement);
-  static final _objectStack = <Object?>[];
+  static final _stack =
+      _StackValue.createStack(_stackSize ~/ Float64List.bytesPerElement);
 
   @override
   ExprResult run(Code code) {
@@ -69,10 +167,7 @@ class _ExprVM implements ExprVM {
   ExprResult _run(Code code) {
     final instructions = ByteData.sublistView(code.code);
     final objectConstants = code.objectConstants;
-    final stack = _stack;
-    final objectStack = _objectStack;
-    objectStack.clear();
-    var sp = -1;
+    var stack = _stack;
     var ip = 0;
     var errorFlag = false;
 
@@ -86,44 +181,44 @@ class _ExprVM implements ExprVM {
       ip = _consumeOp(ip);
       switch (op) {
         case OpCode.LoadNull:
-          sp = _pushObject(null, sp, stack, objectStack);
+          stack = stack.pushObject(null);
           break;
         case OpCode.LoadTrue:
-          sp = _pushBool(true, sp, stack);
+          stack = stack.push(1);
           break;
         case OpCode.LoadFalse:
-          sp = _pushBool(false, sp, stack);
+          stack = stack.push(0);
           break;
         case OpCode.LoadNumber:
           final value = _readNumber(instructions, ip);
           ip = _consumeNumber(ip);
-          sp = _pushNumber(value, sp, stack);
+          stack = stack.push(value);
           break;
         case OpCode.LoadObject:
           final objectId = _readObjectId(instructions, ip);
           ip = _consumeObjectId(ip);
-          sp = _pushObject(objectConstants[objectId], sp, stack, objectStack);
+          stack = stack.pushObject(objectConstants[objectId]);
           break;
         case OpCode.E:
-          sp = _pushNumber(e, sp, stack);
+          stack = stack.push(e);
           break;
         case OpCode.Ln2:
-          sp = _pushNumber(ln2, sp, stack);
+          stack = stack.push(ln2);
           break;
         case OpCode.Pi:
-          sp = _pushNumber(pi, sp, stack);
+          stack = stack.push(pi);
           break;
         case OpCode.ReturnBool:
-          final value = _loadBool(sp, stack);
-          sp = _popBool(sp);
+          final value = stack.value == 0 ? false : true;
+          stack = stack.pop();
           return OkResult(value);
         case OpCode.ReturnNumber:
-          final value = _loadNumber(sp, stack);
-          sp = _popNumber(sp);
+          final value = stack.value;
+          stack = stack.pop();
           return OkResult(value);
         case OpCode.ReturnObject:
-          final value = _loadObject(objectStack);
-          sp = _popObject(sp, objectStack);
+          final value = stack.object;
+          stack = stack.popObject();
           return OkResult(value);
         case OpCode.ReturnError:
           return const ErrorResult('Expression evaluation failed.');
@@ -143,22 +238,21 @@ class _ExprVM implements ExprVM {
           ip = _consumeStackOffset(ip);
           final type = _readTypedId(instructions, ip);
           ip = _consumeTypedId(ip);
-          final stackIndex = sp - stackOffset;
-          final objectStackIndex = stack[stackIndex].toInt();
-          final object = objectStack.removeAt(objectStackIndex);
+          final stackValue = stack.get(stackOffset);
+          final object = stackValue.object;
 
           var checkSucceeded = false;
           switch (type) {
             case 0: // Bool
               if (object is bool) {
                 checkSucceeded = true;
-                stack[stackIndex] = object ? 1.0 : 0.0;
+                stackValue.value = object ? 1.0 : 0.0;
               }
               break;
             case 1: // Number
               if (object is double) {
                 checkSucceeded = true;
-                stack[stackIndex] = object;
+                stackValue.value = object;
               }
               break;
             default:
@@ -173,14 +267,9 @@ class _ExprVM implements ExprVM {
             // Clean up the stack.
             final popCount = _readPopCount(instructions, ip);
             ip = _consumePopCount(ip);
-            final valuesToPop = _decodeTotalPopCount(popCount);
-            final objectsToPop = _decodeObjectPopCount(popCount);
-            sp -= valuesToPop;
-            objectStack.removeRange(
-              // -1 because we already removed the target object.
-              objectStack.length - (objectsToPop - 1),
-              objectStack.length,
-            );
+            for (var i = 0; i < popCount; i++) {
+              stack = stack.popObject();
+            }
 
             // Jump to the error handler.
             final errorHandlerAddress = _readJumpAddress(instructions, ip);
@@ -189,76 +278,76 @@ class _ExprVM implements ExprVM {
           }
           break;
         case OpCode.Not:
-          _unaryMathOp(sp, stack, _not);
+          _unaryMathOp(stack, _not);
           break;
         case OpCode.Min:
-          sp = _binaryMathOp(sp, stack, min);
+          stack = _binaryMathOp(stack, min);
           break;
         case OpCode.Max:
-          sp = _binaryMathOp(sp, stack, max);
+          stack = _binaryMathOp(stack, max);
           break;
         case OpCode.Add:
-          sp = _binaryMathOp(sp, stack, _add);
+          stack = _binaryMathOp(stack, _add);
           break;
         case OpCode.Subtract:
-          sp = _binaryMathOp(sp, stack, _subtract);
+          stack = _binaryMathOp(stack, _subtract);
           break;
         case OpCode.Multiply:
-          sp = _binaryMathOp(sp, stack, _multiply);
+          stack = _binaryMathOp(stack, _multiply);
           break;
         case OpCode.Divide:
-          sp = _binaryMathOp(sp, stack, _divide);
+          stack = _binaryMathOp(stack, _divide);
           break;
         case OpCode.Modulo:
-          sp = _binaryMathOp(sp, stack, _modulo);
+          stack = _binaryMathOp(stack, _modulo);
           break;
         case OpCode.Pow:
-          sp = _binaryMathOp(sp, stack, _pow);
+          stack = _binaryMathOp(stack, _pow);
           break;
         case OpCode.Sqrt:
-          _unaryMathOp(sp, stack, sqrt);
+          _unaryMathOp(stack, sqrt);
           break;
         case OpCode.Negate:
-          _unaryMathOp(sp, stack, _negate);
+          _unaryMathOp(stack, _negate);
           break;
         case OpCode.Abs:
-          _unaryMathOp(sp, stack, _abs);
+          _unaryMathOp(stack, _abs);
           break;
         case OpCode.Floor:
-          _unaryMathOp(sp, stack, _floor);
+          _unaryMathOp(stack, _floor);
           break;
         case OpCode.Ceil:
-          _unaryMathOp(sp, stack, _ceil);
+          _unaryMathOp(stack, _ceil);
           break;
         case OpCode.Round:
-          _unaryMathOp(sp, stack, _round);
+          _unaryMathOp(stack, _round);
           break;
         case OpCode.Sin:
-          _unaryMathOp(sp, stack, sin);
+          _unaryMathOp(stack, sin);
           break;
         case OpCode.Asin:
-          _unaryMathOp(sp, stack, asin);
+          _unaryMathOp(stack, asin);
           break;
         case OpCode.Cos:
-          _unaryMathOp(sp, stack, cos);
+          _unaryMathOp(stack, cos);
           break;
         case OpCode.Acos:
-          _unaryMathOp(sp, stack, acos);
+          _unaryMathOp(stack, acos);
           break;
         case OpCode.Tan:
-          _unaryMathOp(sp, stack, tan);
+          _unaryMathOp(stack, tan);
           break;
         case OpCode.Atan:
-          _unaryMathOp(sp, stack, atan);
+          _unaryMathOp(stack, atan);
           break;
         case OpCode.Log:
-          _unaryMathOp(sp, stack, log);
+          _unaryMathOp(stack, log);
           break;
         case OpCode.Log2:
-          _unaryMathOp(sp, stack, _log2);
+          _unaryMathOp(stack, _log2);
           break;
         case OpCode.Log10:
-          _unaryMathOp(sp, stack, _log10);
+          _unaryMathOp(stack, _log10);
           break;
         default:
           throw StateError('Unknown opcode: $op');
@@ -344,83 +433,20 @@ int _readPopCount(ByteData instructions, int ip) =>
 int _consumePopCount(int ip) => _consumeUint8(ip);
 
 @pragma('vm:prefer-inline')
-int _decodeTotalPopCount(int popCount) => popCount >> 4;
-
-@pragma('vm:prefer-inline')
-int _decodeObjectPopCount(int popCount) => popCount & 0x0F;
-
-@pragma('vm:prefer-inline')
-int _pushBool(
-  bool value,
-  int sp,
-  _Stack stack,
-) =>
-    _pushNumber(value ? 1 : 0, sp, stack);
-
-@pragma('vm:prefer-inline')
-int _pushNumber(double value, int sp, _Stack stack) {
-  stack[++sp] = value;
-  return sp;
+void _unaryMathOp(_Stack stack, double Function(double x) op) {
+  stack.value = op(stack.value);
 }
 
 @pragma('vm:prefer-inline')
-int _pushObject(
-  Object? value,
-  int sp,
-  _Stack stack,
-  List<Object?> stackObjects,
-) {
-  final objectId = stackObjects.length;
-  stackObjects.add(value);
-  stack[++sp] = objectId.toDouble();
-  return sp;
-}
-
-@pragma('vm:prefer-inline')
-bool _loadBool(int sp, _Stack stack) => stack[sp] != 0.0;
-
-@pragma('vm:prefer-inline')
-int _popBool(int sp) => sp - 1;
-
-@pragma('vm:prefer-inline')
-double _loadNumber(int sp, _Stack stack) => stack[sp];
-
-@pragma('vm:prefer-inline')
-int _popNumber(int sp) => sp - 1;
-
-@pragma('vm:prefer-inline')
-Object? _loadObject(List<Object?> objectStack) {
-  // Since we loading the object at the top of the stack it must be the last
-  // object on the object stack and we don't need to look up the index in the
-  // stack.
-  return objectStack.last;
-}
-
-@pragma('vm:prefer-inline')
-int _popObject(int sp, List<Object?> objectStack) {
-  // Since we are popping the object it must be the last object on the object
-  // stack and we don't need to look up the index in the stack.
-  objectStack.removeLast();
-  return sp - 1;
-}
-
-@pragma('vm:prefer-inline')
-void _unaryMathOp(int sp, _Stack stack, double Function(double x) op) {
-  stack[sp] = op(stack[sp]);
-}
-
-@pragma('vm:prefer-inline')
-int _binaryMathOp(
-  int sp,
+_Stack _binaryMathOp(
   _Stack stack,
   double Function(double a, double b) op,
 ) {
-  final indexB = sp;
-  final indexA = indexB - 1;
-  final b = stack[indexB];
-  final a = stack[indexA];
-  stack[indexA] = op(a, b);
-  return indexA;
+  final b = stack.value;
+  stack = stack.pop();
+  final a = stack.value;
+  stack.value = op(a, b);
+  return stack;
 }
 
 @pragma('vm:prefer-inline')
