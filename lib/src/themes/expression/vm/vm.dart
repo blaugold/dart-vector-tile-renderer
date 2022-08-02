@@ -208,30 +208,77 @@ class _ExprVM implements ExprVM {
         case OpCode.Pi:
           stack = stack.push(pi);
           break;
-        case OpCode.ReturnBool:
-          final value = stack.value == 0 ? false : true;
-          stack = stack.pop();
-          return OkResult(value);
-        case OpCode.ReturnNumber:
-          final value = stack.value;
-          stack = stack.pop();
-          return OkResult(value);
-        case OpCode.ReturnObject:
-          final value = stack.object;
-          stack = stack.popObject();
-          return OkResult(value);
-        case OpCode.ReturnError:
-          return const ErrorResult('Expression evaluation failed.');
-        case OpCode.JumpIfNoError:
-          if (!errorFlag) {
-            ip = _readJumpAddress(instructions, ip);
-          } else {
-            errorFlag = false;
-            ip = _consumeJumpAddress(ip);
-          }
+        case OpCode.Not:
+          _unaryMathOp(stack, _not);
           break;
-        case OpCode.SetErrorFlag:
-          errorFlag = true;
+        case OpCode.Add:
+          stack = _binaryMathOp(stack, _add);
+          break;
+        case OpCode.Subtract:
+          stack = _binaryMathOp(stack, _subtract);
+          break;
+        case OpCode.Multiply:
+          stack = _binaryMathOp(stack, _multiply);
+          break;
+        case OpCode.Divide:
+          stack = _binaryMathOp(stack, _divide);
+          break;
+        case OpCode.Modulo:
+          stack = _binaryMathOp(stack, _modulo);
+          break;
+        case OpCode.Pow:
+          stack = _binaryMathOp(stack, _pow);
+          break;
+        case OpCode.Sqrt:
+          _unaryMathOp(stack, sqrt);
+          break;
+        case OpCode.Min:
+          stack = _binaryMathOp(stack, min);
+          break;
+        case OpCode.Max:
+          stack = _binaryMathOp(stack, max);
+          break;
+        case OpCode.Negate:
+          _unaryMathOp(stack, _negate);
+          break;
+        case OpCode.Abs:
+          _unaryMathOp(stack, _abs);
+          break;
+        case OpCode.Floor:
+          _unaryMathOp(stack, _floor);
+          break;
+        case OpCode.Ceil:
+          _unaryMathOp(stack, _ceil);
+          break;
+        case OpCode.Round:
+          _unaryMathOp(stack, _round);
+          break;
+        case OpCode.Sin:
+          _unaryMathOp(stack, sin);
+          break;
+        case OpCode.Asin:
+          _unaryMathOp(stack, asin);
+          break;
+        case OpCode.Cos:
+          _unaryMathOp(stack, cos);
+          break;
+        case OpCode.Acos:
+          _unaryMathOp(stack, acos);
+          break;
+        case OpCode.Tan:
+          _unaryMathOp(stack, tan);
+          break;
+        case OpCode.Atan:
+          _unaryMathOp(stack, atan);
+          break;
+        case OpCode.Log:
+          _unaryMathOp(stack, log);
+          break;
+        case OpCode.Log2:
+          _unaryMathOp(stack, _log2);
+          break;
+        case OpCode.Log10:
+          _unaryMathOp(stack, _log10);
           break;
         case OpCode.LoadObjectAs:
           final stackOffset = _readStackOffset(instructions, ip);
@@ -277,78 +324,31 @@ class _ExprVM implements ExprVM {
             ip = errorHandlerAddress;
           }
           break;
-        case OpCode.Not:
-          _unaryMathOp(stack, _not);
+        case OpCode.SetErrorFlag:
+          errorFlag = true;
           break;
-        case OpCode.Min:
-          stack = _binaryMathOp(stack, min);
+        case OpCode.JumpIfNoError:
+          if (!errorFlag) {
+            ip = _readJumpAddress(instructions, ip);
+          } else {
+            errorFlag = false;
+            ip = _consumeJumpAddress(ip);
+          }
           break;
-        case OpCode.Max:
-          stack = _binaryMathOp(stack, max);
-          break;
-        case OpCode.Add:
-          stack = _binaryMathOp(stack, _add);
-          break;
-        case OpCode.Subtract:
-          stack = _binaryMathOp(stack, _subtract);
-          break;
-        case OpCode.Multiply:
-          stack = _binaryMathOp(stack, _multiply);
-          break;
-        case OpCode.Divide:
-          stack = _binaryMathOp(stack, _divide);
-          break;
-        case OpCode.Modulo:
-          stack = _binaryMathOp(stack, _modulo);
-          break;
-        case OpCode.Pow:
-          stack = _binaryMathOp(stack, _pow);
-          break;
-        case OpCode.Sqrt:
-          _unaryMathOp(stack, sqrt);
-          break;
-        case OpCode.Negate:
-          _unaryMathOp(stack, _negate);
-          break;
-        case OpCode.Abs:
-          _unaryMathOp(stack, _abs);
-          break;
-        case OpCode.Floor:
-          _unaryMathOp(stack, _floor);
-          break;
-        case OpCode.Ceil:
-          _unaryMathOp(stack, _ceil);
-          break;
-        case OpCode.Round:
-          _unaryMathOp(stack, _round);
-          break;
-        case OpCode.Sin:
-          _unaryMathOp(stack, sin);
-          break;
-        case OpCode.Asin:
-          _unaryMathOp(stack, asin);
-          break;
-        case OpCode.Cos:
-          _unaryMathOp(stack, cos);
-          break;
-        case OpCode.Acos:
-          _unaryMathOp(stack, acos);
-          break;
-        case OpCode.Tan:
-          _unaryMathOp(stack, tan);
-          break;
-        case OpCode.Atan:
-          _unaryMathOp(stack, atan);
-          break;
-        case OpCode.Log:
-          _unaryMathOp(stack, log);
-          break;
-        case OpCode.Log2:
-          _unaryMathOp(stack, _log2);
-          break;
-        case OpCode.Log10:
-          _unaryMathOp(stack, _log10);
-          break;
+        case OpCode.ReturnBool:
+          final value = stack.value == 0 ? false : true;
+          stack = stack.pop();
+          return OkResult(value);
+        case OpCode.ReturnNumber:
+          final value = stack.value;
+          stack = stack.pop();
+          return OkResult(value);
+        case OpCode.ReturnObject:
+          final value = stack.object;
+          stack = stack.popObject();
+          return OkResult(value);
+        case OpCode.ReturnError:
+          return const ErrorResult('Expression evaluation failed.');
         default:
           throw StateError('Unknown opcode: $op');
       }
