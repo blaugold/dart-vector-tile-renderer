@@ -1,3 +1,5 @@
+// ignore_for_file: non_constant_identifier_names
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -49,6 +51,7 @@ class _ExprVM implements ExprVM {
   var _sp = 0;
   var _ip = 0;
   var _errorFlag = false;
+  ExprResult? _result;
 
   @override
   ExprResult run(Code code) {
@@ -74,8 +77,9 @@ class _ExprVM implements ExprVM {
     _sp = 0;
     _ip = 0;
     _errorFlag = false;
+    _result = null;
 
-    while (true) {
+    while (_result == null) {
       if (debugExprVMTraceExecution) {
         // ignore: avoid_print
         print(code.disassembleInstruction(_ip, _code));
@@ -84,122 +88,129 @@ class _ExprVM implements ExprVM {
       final op = _loadOp();
       switch (op) {
         case OpCode.LoadNull:
-          _pushObject(null);
+          _LoadNull();
           break;
         case OpCode.LoadTrue:
-          _pushBool(true);
+          _LoadTrue();
           break;
         case OpCode.LoadFalse:
-          _pushBool(false);
+          _LoadFalse();
           break;
         case OpCode.LoadNumber:
-          _loadNumber();
+          _LoadNumber();
           break;
         case OpCode.LoadObject:
-          _loadObject();
+          _LoadObject();
           break;
         case OpCode.E:
-          _pushNumber(e);
+          _E();
           break;
         case OpCode.Ln2:
-          _pushNumber(ln2);
+          _Ln2();
           break;
         case OpCode.Pi:
-          _pushNumber(pi);
+          _Pi();
           break;
         case OpCode.ReturnBool:
-          return OkResult(_popBool());
+          _ReturnBool();
+          break;
         case OpCode.ReturnNumber:
-          return OkResult(_popNumber());
+          _ReturnNumber();
+          break;
         case OpCode.ReturnObject:
-          return OkResult(_popObject());
+          _ReturnObject();
+          break;
         case OpCode.ReturnError:
-          return const ErrorResult('Expression evaluation failed.');
+          _ReturnError();
+          break;
         case OpCode.JumpIfNoError:
-          _jumpIfNoError();
+          _JumpIfNoError();
           break;
         case OpCode.SetErrorFlag:
-          _errorFlag = true;
+          _SetErrorFlag();
           break;
         case OpCode.LoadObjectAs:
-          _loadObjectAs();
+          _LoadObjectAs();
           break;
         case OpCode.Not:
-          _unaryMathOp(_not);
+          _Not();
           break;
         case OpCode.Min:
-          _binaryMathOp(min);
+          _Min();
           break;
         case OpCode.Max:
-          _binaryMathOp(max);
+          _Max();
           break;
         case OpCode.Add:
-          _binaryMathOp(_add);
+          _Add();
           break;
         case OpCode.Subtract:
-          _binaryMathOp(_subtract);
+          _Subtract();
           break;
         case OpCode.Multiply:
-          _binaryMathOp(_multiply);
+          _Multiply();
           break;
         case OpCode.Divide:
-          _binaryMathOp(_divide);
+          _Divide();
           break;
         case OpCode.Modulo:
-          _binaryMathOp(_modulo);
+          _Modulo();
           break;
         case OpCode.Pow:
-          _binaryMathOp(_pow);
+          _Pow();
           break;
         case OpCode.Sqrt:
-          _unaryMathOp(sqrt);
+          _Sqrt();
           break;
         case OpCode.Negate:
-          _unaryMathOp(_negate);
+          _Negate();
           break;
         case OpCode.Abs:
-          _unaryMathOp(_abs);
+          _Abs();
           break;
         case OpCode.Floor:
-          _unaryMathOp(_floor);
+          _Floor();
           break;
         case OpCode.Ceil:
-          _unaryMathOp(_ceil);
+          _Ceil();
           break;
         case OpCode.Round:
-          _unaryMathOp(_round);
+          _Round();
           break;
         case OpCode.Sin:
-          _unaryMathOp(sin);
+          _Sin();
           break;
         case OpCode.Asin:
-          _unaryMathOp(asin);
+          _Asin();
           break;
         case OpCode.Cos:
-          _unaryMathOp(cos);
+          _Cos();
           break;
         case OpCode.Acos:
-          _unaryMathOp(acos);
+          _Acos();
           break;
         case OpCode.Tan:
-          _unaryMathOp(tan);
+          _Tan();
           break;
         case OpCode.Atan:
-          _unaryMathOp(atan);
+          _Atan();
           break;
         case OpCode.Log:
-          _unaryMathOp(log);
+          _Log();
           break;
         case OpCode.Log2:
-          _unaryMathOp(_log2);
+          _Log2();
           break;
         case OpCode.Log10:
-          _unaryMathOp(_log10);
+          _Log10();
           break;
         default:
-          return ErrorResult('Unknown op: $op');
+          _result = ErrorResult('Unknown op: $op');
+          break;
       }
     }
+
+    return _result!;
   }
 
   @pragma('vm:prefer-inline')
@@ -255,16 +266,65 @@ class _ExprVM implements ExprVM {
   }
 
   @pragma('vm:prefer-inline')
-  void _loadNumber() => _pushNumber(_loadFloat64());
+  void _unaryMathOp(double Function(double x) op) {
+    final sp = _sp - 1;
+    _stack[sp] = op(_stack[sp]);
+  }
 
   @pragma('vm:prefer-inline')
-  void _loadObject() {
+  void _binaryMathOp(double Function(double a, double b) op) {
+    final spB = _sp - 1;
+    final spA = spB - 1;
+    final b = _stack[spB];
+    final a = _stack[spA];
+    _stack[spA] = op(a, b);
+    _sp = spB;
+  }
+
+  // === Ops ===================================================================
+
+  @pragma('vm:prefer-inline')
+  void _LoadNull() => _pushObject(null);
+
+  @pragma('vm:prefer-inline')
+  void _LoadTrue() => _pushObject(true);
+
+  @pragma('vm:prefer-inline')
+  void _LoadFalse() => _pushObject(false);
+
+  @pragma('vm:prefer-inline')
+  void _LoadNumber() => _pushNumber(_loadFloat64());
+
+  @pragma('vm:prefer-inline')
+  void _LoadObject() {
     final constantId = _loadUint8();
     _pushObject(_objectConstants[constantId]);
   }
 
   @pragma('vm:prefer-inline')
-  void _jumpIfNoError() {
+  void _E() => _pushNumber(e);
+
+  @pragma('vm:prefer-inline')
+  void _Ln2() => _pushNumber(ln2);
+
+  @pragma('vm:prefer-inline')
+  void _Pi() => _pushNumber(pi);
+
+  @pragma('vm:prefer-inline')
+  void _ReturnBool() => _result = OkResult(_popBool());
+
+  @pragma('vm:prefer-inline')
+  void _ReturnNumber() => _result = OkResult(_popNumber());
+
+  @pragma('vm:prefer-inline')
+  void _ReturnObject() => _result = OkResult(_popObject());
+
+  @pragma('vm:prefer-inline')
+  void _ReturnError() =>
+      _result = const ErrorResult('Expression evaluation failed.');
+
+  @pragma('vm:prefer-inline')
+  void _JumpIfNoError() {
     if (!_errorFlag) {
       _ip = _loadUint16();
     } else {
@@ -274,7 +334,10 @@ class _ExprVM implements ExprVM {
   }
 
   @pragma('vm:prefer-inline')
-  void _loadObjectAs() {
+  void _SetErrorFlag() => _errorFlag = true;
+
+  @pragma('vm:prefer-inline')
+  void _LoadObjectAs() {
     final offset = _loadUint8();
     final type = _loadUint8();
     final stackOffset = _sp - 1 - offset;
@@ -323,20 +386,76 @@ class _ExprVM implements ExprVM {
   }
 
   @pragma('vm:prefer-inline')
-  void _unaryMathOp(double Function(double x) op) {
-    final sp = _sp - 1;
-    _stack[sp] = op(_stack[sp]);
-  }
+  void _Not() => _unaryMathOp(_not);
 
   @pragma('vm:prefer-inline')
-  void _binaryMathOp(double Function(double a, double b) op) {
-    final spB = _sp - 1;
-    final spA = spB - 1;
-    final b = _stack[spB];
-    final a = _stack[spA];
-    _stack[spA] = op(a, b);
-    _sp = spB;
-  }
+  void _Min() => _binaryMathOp(min);
+
+  @pragma('vm:prefer-inline')
+  void _Max() => _binaryMathOp(max);
+
+  @pragma('vm:prefer-inline')
+  void _Add() => _binaryMathOp(_add);
+
+  @pragma('vm:prefer-inline')
+  void _Subtract() => _binaryMathOp(_subtract);
+
+  @pragma('vm:prefer-inline')
+  void _Multiply() => _binaryMathOp(_multiply);
+
+  @pragma('vm:prefer-inline')
+  void _Divide() => _binaryMathOp(_divide);
+
+  @pragma('vm:prefer-inline')
+  void _Modulo() => _binaryMathOp(_modulo);
+
+  @pragma('vm:prefer-inline')
+  void _Pow() => _binaryMathOp(_pow);
+
+  @pragma('vm:prefer-inline')
+  void _Sqrt() => _unaryMathOp(sqrt);
+
+  @pragma('vm:prefer-inline')
+  void _Negate() => _unaryMathOp(_negate);
+
+  @pragma('vm:prefer-inline')
+  void _Abs() => _unaryMathOp(_abs);
+
+  @pragma('vm:prefer-inline')
+  void _Floor() => _unaryMathOp(_floor);
+
+  @pragma('vm:prefer-inline')
+  void _Ceil() => _unaryMathOp(_ceil);
+
+  @pragma('vm:prefer-inline')
+  void _Round() => _unaryMathOp(_round);
+
+  @pragma('vm:prefer-inline')
+  void _Sin() => _unaryMathOp(sin);
+
+  @pragma('vm:prefer-inline')
+  void _Asin() => _unaryMathOp(asin);
+
+  @pragma('vm:prefer-inline')
+  void _Cos() => _unaryMathOp(cos);
+
+  @pragma('vm:prefer-inline')
+  void _Acos() => _unaryMathOp(acos);
+
+  @pragma('vm:prefer-inline')
+  void _Tan() => _unaryMathOp(tan);
+
+  @pragma('vm:prefer-inline')
+  void _Atan() => _unaryMathOp(atan);
+
+  @pragma('vm:prefer-inline')
+  void _Log() => _unaryMathOp(log);
+
+  @pragma('vm:prefer-inline')
+  void _Log2() => _unaryMathOp(_log2);
+
+  @pragma('vm:prefer-inline')
+  void _Log10() => _unaryMathOp(_log10);
 }
 
 @pragma('vm:prefer-inline')
