@@ -5,8 +5,8 @@ import 'package:collection/collection.dart';
 import 'code.dart';
 import 'op.dart';
 
-const debugExprCompilerPrintCode = true;
-const debugExprVMTraceExecution = true;
+const debugExprCompilerPrintCode = false;
+const debugExprVMTraceExecution = false;
 
 extension DisassembleExt on Code {
   String disassemble() {

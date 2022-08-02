@@ -3,15 +3,22 @@ import 'package:collection/collection.dart';
 import 'expression.dart';
 import 'literal_expression.dart';
 
-Expression<T> wrapConstant<T>(Expression<T> delegate) => delegate.isConstant &&
-        delegate is! LiteralExpression &&
-        delegate is! _ConstantExpression
-    ? _ConstantExpression<T>(delegate)
-    : delegate;
+var enableExpressionConstantEvaluation = true;
+var enableExpressionCaching = true;
 
-Expression<T> cache<T>(Expression<T> delegate) => delegate.isConstant
-    ? _ConstantExpression<T>(delegate)
-    : _CachingExpression<T>(delegate);
+Expression<T> wrapConstant<T>(Expression<T> delegate) =>
+    enableExpressionConstantEvaluation &&
+            delegate.isConstant &&
+            delegate is! LiteralExpression &&
+            delegate is! _ConstantExpression
+        ? _ConstantExpression<T>(delegate)
+        : delegate;
+
+Expression<T> cache<T>(Expression<T> delegate) => enableExpressionCaching
+    ? delegate.isConstant
+        ? _ConstantExpression<T>(delegate)
+        : _CachingExpression<T>(delegate)
+    : delegate;
 
 class _CachingExpression<T> extends Expression<T> {
   final Expression _delegate;
