@@ -7,8 +7,6 @@ import 'code.dart';
 import 'debug.dart';
 import 'op.dart';
 
-typedef _Stack = _StackValue;
-
 abstract class ExprVM {
   factory ExprVM() = _ExprVM;
 
@@ -43,6 +41,8 @@ class ErrorResult extends ExprResult implements Exception {
   String toString() => 'Expression evaluation error: $message';
 }
 
+typedef _Stack = _StackValue;
+
 class _StackValue {
   _StackValue();
 
@@ -61,12 +61,23 @@ class _StackValue {
     return stack;
   }
 
-  bool get isBeforeFirst => previous == null;
-
   double value = 0;
   Object? object;
   _StackValue? next;
   _StackValue? previous;
+
+  void reset() {
+    var value = this;
+    while (true) {
+      value.value = 0;
+      value.object = null;
+      final next = value.next;
+      if (next == null) {
+        break;
+      }
+      value = next;
+    }
+  }
 
   @pragma('vm:prefer-inline')
   _StackValue get(int offset) {
@@ -79,21 +90,6 @@ class _StackValue {
       stack = previous;
       offset--;
     }
-    return stack;
-  }
-
-  _StackValue reset() {
-    var stack = this;
-    while (true) {
-      stack.value = 0;
-      stack.object = null;
-      final previous = stack.previous;
-      if (previous == null) {
-        break;
-      }
-      stack = previous;
-    }
-
     return stack;
   }
 
@@ -142,10 +138,8 @@ class _StackValue {
 }
 
 class _ExprVM implements ExprVM {
-  static const _stackSize = 8 * 1024; // 8 KB
-
-  static final _stack =
-      _StackValue.createStack(_stackSize ~/ Float64List.bytesPerElement);
+  static const _initialStackSize = 256;
+  static final _stack = _StackValue.createStack(_initialStackSize);
 
   @override
   ExprResult run(Code code) {
@@ -154,14 +148,19 @@ class _ExprVM implements ExprVM {
       print('=== Execution Start ===');
     }
 
-    final result = _run(code);
+    try {
+      final result = _run(code);
 
-    if (debugExprVMTraceExecution) {
-      // ignore: avoid_print
-      print('=== Execution End   ===');
+      if (debugExprVMTraceExecution) {
+        // ignore: avoid_print
+        print('=== Execution End   ===');
+      }
+
+      return result;
+    } catch (e) {
+      _stack.reset();
+      rethrow;
     }
-
-    return result;
   }
 
   ExprResult _run(Code code) {

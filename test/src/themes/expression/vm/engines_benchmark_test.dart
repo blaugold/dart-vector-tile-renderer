@@ -1,5 +1,7 @@
 import 'dart:developer';
 
+import 'package:test/test.dart';
+
 import 'tree_walker_benchmark.dart';
 import 'vm_benchmark.dart';
 
@@ -74,23 +76,25 @@ const arithmeticExpr = [
 ];
 
 void main() {
-  const debug = false;
-  // ignore: dead_code
-  if (debug) {
-    debugger();
-  }
+  test('engines benchmarks', () {
+    const debug = false;
+    // ignore: dead_code
+    if (debug) {
+      debugger();
+    }
 
-  final benchmarks = [
-    TreeWalkerBenchmark('Arithmetic', arithmeticExpr),
-    VMBenchmark('Arithmetic', arithmeticExpr),
-  ];
+    final benchmarks = [
+      TreeWalkerBenchmark('Arithmetic', arithmeticExpr),
+      VMBenchmark('Arithmetic', arithmeticExpr),
+    ];
 
-  for (final benchmark in benchmarks) {
-    benchmark.report();
-  }
+    for (final benchmark in benchmarks) {
+      benchmark.report();
+    }
 
-  // ignore: dead_code
-  if (debug) {
-    debugger();
-  }
+    // ignore: dead_code
+    if (debug) {
+      debugger();
+    }
+  });
 }
